@@ -1,0 +1,27 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Job {
+  id             String    @id @default(uuid())
+  status         JobStatus @default(PENDING)
+  originalVideo  String    // path to original file in shared storage
+  processedVideo String?   // path to processed file in shared storage
+  progress       Float     @default(0.0)
+  duration       Float?    // in seconds
+  error          String?   // error details if FAILED
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}

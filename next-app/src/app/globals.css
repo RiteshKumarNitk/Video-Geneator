@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #030303;
+  --foreground: #fafafa;
+  --primary: #00ff00; /* Pure Green-Screen Color */
+  --emerald: #10b981;
+  --indigo-glow: rgba(99, 102, 241, 0.15);
+  --emerald-glow: rgba(16, 185, 129, 0.15);
+  --card: #09090b;
+  --border: rgba(255, 255, 255, 0.08);
+  --muted: #a1a1aa;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Plus Jakarta Sans', 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Mesh Gradients */
+.bg-mesh-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.03) 0%, transparent 50%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Glassmorphism Cards */
+.glass-card {
+  background: rgba(15, 15, 17, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  border-color: rgba(16, 185, 129, 0.25);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(16, 185, 129, 0.05);
+}
+
+/* Active Processing Card Glow */
+.processing-glow {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.5) !important;
+  animation: pulse-glow 2.5s infinite ease-in-out;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.3) !important;
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.35);
+    border-color: rgba(16, 185, 129, 0.7) !important;
+  }
+}
+
+/* Neon Green-Screen Border */
+.neon-green-shadow {
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+}
+
+/* Progress bar animation */
+.progress-animated {
+  background: linear-gradient(90deg, #10b981 0%, #059669 50%, #10b981 100%);
+  background-size: 200% 100%;
+  animation: move-gradient 2s infinite linear;
+}
+
+@keyframes move-gradient {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: -200% 0%;
+  }
+}
