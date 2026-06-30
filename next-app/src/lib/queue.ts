@@ -6,9 +6,14 @@ export const jobEvents = new EventEmitter();
 
 interface QueueItem {
   jobId: string;
-  videoPath: string;
+  videoPath: string | null;
   backgroundType: string;
   callbackBase: string;
+  type: 'MATTING' | 'SHORTS_SPLIT';
+  youtubeUrl: string | null;
+  clipDuration: number;
+  videoQuality: string;
+  orientation: string;
 }
 
 const queue: QueueItem[] = [];
@@ -22,8 +27,8 @@ async function processQueue() {
   isProcessing = true;
   
   const item = queue.shift()!;
-  const { jobId, videoPath, backgroundType, callbackBase } = item;
-  console.log(`[Queue] Starting processing for job ${jobId} (bg: ${backgroundType})`);
+  const { jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, clipDuration, videoQuality, orientation } = item;
+  console.log(`[Queue] Starting processing for job ${jobId} (type: ${type}, bg: ${backgroundType}, quality: ${videoQuality}, orientation: ${orientation})`);
 
   try {
     // 1. Update database job status to PROCESSING
@@ -52,18 +57,35 @@ async function processQueue() {
       jobEvents.on(`status:${jobId}`, onStatusUpdate);
     });
 
-    // 3. Trigger FastAPI background task
-    const response = await fetch(`${PYTHON_AI_URL}/process-video`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jobId,
-        videoPath,
-        outputPath: getStoragePath(`processed/${jobId}.mp4`),
-        progressCallbackUrl: `${callbackBase}/api/job/update-progress`,
-        backgroundType,
-      }),
-    });
+    // 3. Trigger FastAPI background task based on job type
+    let response;
+    if (type === 'SHORTS_SPLIT') {
+      response = await fetch(`${PYTHON_AI_URL}/youtube-split`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId,
+          youtubeUrl,
+          clipDuration,
+          videoQuality,
+          orientation,
+          outputDir: getStoragePath(`processed/${jobId}`),
+          progressCallbackUrl: `${callbackBase}/api/job/update-progress`,
+        }),
+      });
+    } else {
+      response = await fetch(`${PYTHON_AI_URL}/process-video`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId,
+          videoPath,
+          outputPath: getStoragePath(`processed/${jobId}.mp4`),
+          progressCallbackUrl: `${callbackBase}/api/job/update-progress`,
+          backgroundType,
+        }),
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -89,12 +111,27 @@ async function processQueue() {
 
 export async function addVideoJob(
   jobId: string, 
-  videoPath: string, 
+  videoPath: string | null, 
   backgroundType: string = 'green',
-  nextjsInternalUrl?: string
+  nextjsInternalUrl?: string,
+  type: 'MATTING' | 'SHORTS_SPLIT' = 'MATTING',
+  youtubeUrl: string | null = null,
+  clipDuration: number = 30,
+  videoQuality: string = '1080p',
+  orientation: string = 'horizontal'
 ) {
   const callbackBase = nextjsInternalUrl || process.env.NEXTJS_INTERNAL_URL || 'http://localhost:3000';
-  queue.push({ jobId, videoPath, backgroundType, callbackBase });
+  queue.push({ 
+    jobId, 
+    videoPath, 
+    backgroundType, 
+    callbackBase, 
+    type, 
+    youtubeUrl, 
+    clipDuration,
+    videoQuality,
+    orientation
+  });
   processQueue();
   return { jobId };
 }

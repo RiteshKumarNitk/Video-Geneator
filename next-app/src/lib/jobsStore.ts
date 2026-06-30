@@ -5,12 +5,17 @@ import { getStoragePath } from './storage';
 export interface Job {
   id: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  originalVideo: string;
+  originalVideo: string | null;
   processedVideo: string | null;
   progress: number;
   duration: number | null;
   error: string | null;
   backgroundType?: string;
+  type?: 'MATTING' | 'SHORTS_SPLIT';
+  youtubeUrl?: string | null;
+  processedClips?: string[];
+  videoQuality?: string;
+  orientation?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,17 +46,22 @@ export async function getJob(id: string): Promise<Job | null> {
   return jobs.find((j) => j.id === id) || null;
 }
 
-export async function createJob(data: Partial<Job> & { id: string; originalVideo: string }): Promise<Job> {
+export async function createJob(data: Partial<Job> & { id: string }): Promise<Job> {
   const jobs = await readJobs();
   const newJob: Job = {
     id: data.id,
     status: 'PENDING',
-    originalVideo: data.originalVideo,
+    originalVideo: data.originalVideo || null,
     processedVideo: null,
     progress: 0,
     duration: null,
     error: null,
     backgroundType: 'green',
+    type: 'MATTING',
+    youtubeUrl: null,
+    processedClips: [],
+    videoQuality: '1080p',
+    orientation: 'horizontal',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...data,

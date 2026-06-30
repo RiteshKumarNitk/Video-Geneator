@@ -6,7 +6,7 @@ import Link from 'next/link';
 interface Job {
   id: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  originalVideo: string;
+  originalVideo: string | null;
   processedVideo: string | null;
   progress: number;
   error: string | null;
@@ -33,7 +33,7 @@ export default function Dashboard() {
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/job/${activeJobId}`);
+        const res = await fetch(`/api/job/${activeJobId}?t=${Date.now()}`);
         if (!res.ok) throw new Error('Job not found');
         const data: Job = await res.json();
         
@@ -64,10 +64,12 @@ export default function Dashboard() {
       const res = await fetch('/api/jobs');
       if (res.ok) {
         const data: Job[] = await res.json();
-        setJobs(data);
+        // Filter history list to only show MATTING type tasks on the dashboard page
+        const mattingJobs = data.filter(j => j.type === 'MATTING' || !j.type);
+        setJobs(mattingJobs);
 
-        // Automatically resume polling if there is a running/pending job in history
-        const runningJob = data.find(
+        // Automatically resume polling if there is a running/pending matting job in history
+        const runningJob = mattingJobs.find(
           (j) => j.status === 'PENDING' || j.status === 'PROCESSING'
         );
         if (runningJob && !activeJobId) {
@@ -221,7 +223,7 @@ export default function Dashboard() {
                 Select AI Backdrop Replacement
               </h3>
               <p className="text-xs text-zinc-500 mt-1">
-                Choose the color to composite behind the subject. extenstible for blue, white, black.
+                Choose the color to composite behind the subject. Customizable for green, blue, white, and black.
               </p>
             </div>
             
@@ -280,7 +282,7 @@ export default function Dashboard() {
           </div>
         )}
         
-        {/* Step 1: Upload / Active State Area */}
+        {/* Step 1: Upload Area */}
         {!activeJob && (
           <div
             onDragEnter={handleDrag}
@@ -566,7 +568,20 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400">
+                        Chroma Key
+                      </span>
+                      {job.backgroundType && (
+                        <span className="text-[9px] text-zinc-500 uppercase font-mono">
+                          bg: {job.backgroundType}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1 border-t border-white/[0.02]">
                     <span>
                       {new Date(job.createdAt).toLocaleDateString(undefined, {
                         month: 'short',

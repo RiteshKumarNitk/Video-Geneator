@@ -38,6 +38,9 @@ export default function RootLayout({
                 <Link href="/dashboard" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
                   Dashboard
                 </Link>
+                <Link href="/youtube" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+                  YouTube Shorts
+                </Link>
                 <Link href="/admin" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
                   Admin Panel
                 </Link>

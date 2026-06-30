@@ -6,6 +6,7 @@ from pydantic import BaseModel, HttpUrl
 import requests
 
 from app.matting import process_video_matting
+from app.youtube_splitter import split_video_into_shorts
 from app.ffmpeg_utils import has_audio, extract_audio, merge_audio_video
 
 # Setup logging
@@ -16,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="AI Video Background Changer Service")
+app = FastAPI(title="AI Video Engine Service")
 
 class ProcessVideoRequest(BaseModel):
     jobId: str
@@ -24,6 +25,15 @@ class ProcessVideoRequest(BaseModel):
     outputPath: str
     progressCallbackUrl: str
     backgroundType: str = "green"
+
+class YoutubeSplitRequest(BaseModel):
+    jobId: str
+    youtubeUrl: str
+    clipDuration: int = 30
+    videoQuality: str = "1080p"
+    orientation: str = "horizontal"
+    outputDir: str
+    progressCallbackUrl: str
 
 def run_pipeline(request: ProcessVideoRequest):
     """Executes the full matting and audio composition pipeline in the background."""
@@ -103,6 +113,52 @@ def run_pipeline(request: ProcessVideoRequest):
                 except Exception as cleanup_err:
                     logger.warning(f"Failed to delete temp file {temp_file}: {cleanup_err}")
 
+def run_youtube_split_pipeline(request: YoutubeSplitRequest):
+    """Executes the YouTube downloading and splitting pipeline in the background."""
+    job_id = request.jobId
+    youtube_url = request.youtubeUrl
+    clip_duration = request.clipDuration
+    video_quality = request.videoQuality
+    orientation = request.orientation
+    output_dir = request.outputDir
+    callback_url = request.progressCallbackUrl
+
+    try:
+        logger.info(f"Starting YouTube split pipeline for job: {job_id}")
+        clips = split_video_into_shorts(
+            job_id=job_id,
+            youtube_url=youtube_url,
+            output_dir=output_dir,
+            clip_duration=clip_duration,
+            progress_callback_url=callback_url,
+            video_quality=video_quality,
+            orientation=orientation
+        )
+        
+        logger.info(f"Job {job_id}: YouTube split complete. Generated clips: {clips}")
+        
+        # Send completion payload including the array of clip filenames
+        requests.post(
+            callback_url,
+            json={
+                "jobId": job_id,
+                "progress": 100,
+                "status": "COMPLETED",
+                "processedClips": clips
+            },
+            timeout=5
+        )
+    except Exception as e:
+        logger.error(f"Job {job_id} YouTube split failed: {str(e)}", exc_info=True)
+        try:
+            requests.post(
+                callback_url,
+                json={"jobId": job_id, "progress": 0, "status": "FAILED", "error": str(e)},
+                timeout=5
+            )
+        except Exception as webhook_err:
+            logger.error(f"Failed to send failure webhook for split job {job_id}: {str(webhook_err)}")
+
 @app.get("/health")
 def health_check():
     import torch
@@ -114,11 +170,14 @@ def health_check():
 
 @app.post("/process-video")
 def process_video(request: ProcessVideoRequest, background_tasks: BackgroundTasks):
-    # Verify input file exists
     if not os.path.exists(request.videoPath):
         logger.error(f"Input video not found: {request.videoPath}")
         raise HTTPException(status_code=400, detail=f"Input video file not found at path: {request.videoPath}")
         
-    # Start background processing
     background_tasks.add_task(run_pipeline, request)
+    return {"status": "processing", "jobId": request.jobId}
+
+@app.post("/youtube-split")
+def youtube_split(request: YoutubeSplitRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_youtube_split_pipeline, request)
     return {"status": "processing", "jobId": request.jobId}
