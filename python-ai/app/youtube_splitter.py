@@ -36,13 +36,15 @@ def download_youtube_video(youtube_url: str, output_path: str, video_quality: st
         elif d['status'] == 'finished':
             logger.info("yt-dlp finished downloading.")
 
-    # Quality formats mapping (allow downloading high-res non-mp4 streams like VP9/WebM then merge to MP4 container)
+    # Quality formats mapping (highest quality options, prefer high-bitrate codecs)
     quality_map = {
+        "2160p": "bestvideo[height<=2160]+bestaudio/best[height<=2160]/best",
+        "1440p": "bestvideo[height<=1440]+bestaudio/best[height<=1440]/best",
         "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
         "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
         "480p": "bestvideo[height<=480]+bestaudio/best[height<=480]/best",
         "360p": "bestvideo[height<=360]+bestaudio/best[height<=360]/best",
-        "best": "bestvideo+bestaudio/best",
+        "best": "bestvideo[height<=2160]+bestaudio/best[height<=2160]/best",
     }
     
     selected_format = quality_map.get(video_quality.lower(), quality_map["best"])
@@ -65,11 +67,11 @@ def download_youtube_video(youtube_url: str, output_path: str, video_quality: st
         return True
     except Exception as e:
         logger.error(f"yt-dlp download failed: {str(e)}")
-        # Fallback to general best format if merge failed
+        # Fallback: try best available with relaxed constraints
         try:
-            logger.info("Retrying with simple best format...")
-            ydl_opts['format'] = 'best'
-            ydl_opts.pop('merge_output_format', None)
+            logger.info("Retrying with best available format (no height limit)...")
+            ydl_opts['format'] = 'bestvideo+bestaudio/best'
+            ydl_opts['merge_output_format'] = 'mp4'
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([youtube_url])
             return True
@@ -149,7 +151,7 @@ def split_video_into_shorts(
             clip_output_path = os.path.join(output_dir, clip_name)
             
             if orientation.lower() == "vertical":
-                # Vertical crop: crop to 9:16 centered, divisible by 2, and re-encode to H.264 (high-quality visually lossless)
+                # Vertical crop: crop to 9:16 centered, re-encode to high-quality H.264 (near-lossless)
                 cmd = [
                     ffmpeg_bin,
                     "-y",
@@ -158,8 +160,10 @@ def split_video_into_shorts(
                     "-i", temp_download_path,
                     "-vf", "crop=2*trunc(ih*9/32):ih",
                     "-c:v", "libx264",
-                    "-crf", "20",
-                    "-preset", "fast",
+                    "-crf", "18",
+                    "-preset", "slow",
+                    "-profile:v", "high",
+                    "-level", "4.2",
                     "-pix_fmt", "yuv420p",
                     "-c:a", "aac",
                     "-b:a", "192k",

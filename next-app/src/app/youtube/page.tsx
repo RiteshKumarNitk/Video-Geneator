@@ -26,7 +26,7 @@ export default function YoutubeShortsCreator() {
   // Form Inputs
   const [youtubeUrlText, setYoutubeUrlText] = useState<string>('');
   const [clipDuration, setClipDuration] = useState<number>(30);
-  const [videoQuality, setVideoQuality] = useState<string>('1080p');
+  const [videoQuality, setVideoQuality] = useState<string>('best');
   const [orientation, setOrientation] = useState<string>('horizontal');
   
   const [splitting, setSplitting] = useState<boolean>(false);
@@ -243,11 +243,13 @@ export default function YoutubeShortsCreator() {
                     onChange={(e) => setVideoQuality(e.target.value)}
                     className="w-full px-3 py-3 bg-zinc-950 border border-white/10 rounded-xl text-xs text-zinc-200 focus:outline-none focus:border-purple-500 transition-colors"
                   >
+                    <option value="best">Best Available (Auto)</option>
+                    <option value="2160p">4K (2160p)</option>
+                    <option value="1440p">1440p (2K)</option>
                     <option value="1080p">1080p Full HD</option>
                     <option value="720p">720p HD</option>
                     <option value="480p">480p SD</option>
                     <option value="360p">360p LQ</option>
-                    <option value="best">Best Available (Auto)</option>
                   </select>
                 </div>
 

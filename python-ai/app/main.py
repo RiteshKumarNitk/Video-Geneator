@@ -7,7 +7,7 @@ import requests
 
 from app.matting import process_video_matting
 from app.youtube_splitter import split_video_into_shorts
-from app.ffmpeg_utils import has_audio, extract_audio, merge_audio_video
+from app.ffmpeg_utils import has_audio, extract_audio_high_quality as extract_audio, merge_audio_video
 
 # Setup logging
 logging.basicConfig(

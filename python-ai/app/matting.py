@@ -59,9 +59,9 @@ def process_video_matting(
     logger.info(f"Processing video: {width}x{height} @ {fps}fps, total frames: {frame_count}")
     
     # Calculate recommended downsample ratio
-    # RVM recommends downsample ratio to make max dimension around 512
+    # Higher max dimension (768) preserves more edge detail for higher quality mattes
     max_dim = max(width, height)
-    downsample_ratio = min(512.0 / max_dim, 1.0)
+    downsample_ratio = min(768.0 / max_dim, 1.0)
     logger.info(f"RVM Downsample Ratio: {downsample_ratio}")
     
     # Ensure parent dir of temp output exists
