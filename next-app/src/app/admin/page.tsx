@@ -2,6 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import {
+  RefreshCw,
+  Trash2,
+  Activity,
+  Server,
+  Clock,
+  ExternalLink,
+} from 'lucide-react';
 
 interface Job {
   id: string;
@@ -36,7 +44,6 @@ export default function AdminPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch stats & health
       const statsRes = await fetch('/api/admin/stats');
       if (statsRes.ok) {
         const statsData = await statsRes.json();
@@ -44,7 +51,6 @@ export default function AdminPanel() {
         setHealth(statsData.pythonAi);
       }
 
-      // Fetch jobs list
       const jobsRes = await fetch('/api/jobs');
       if (jobsRes.ok) {
         const jobsData = await jobsRes.json();
@@ -59,7 +65,7 @@ export default function AdminPanel() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 8000); // refresh every 8s
+    const interval = setInterval(fetchData, 8000);
     return () => clearInterval(interval);
   }, []);
 
@@ -95,75 +101,67 @@ export default function AdminPanel() {
   };
 
   return (
-    <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
-      {/* Admin Panel Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-white/5 pb-5 gap-4">
+    <div className="page-container flex flex-col gap-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-[var(--border-default)] pb-5 gap-4">
         <div>
           <span className="text-xs text-emerald-400 font-bold uppercase tracking-widest">Admin Console</span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-0.5">Queue Monitoring</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-white)] tracking-tight mt-0.5">Queue Monitoring</h2>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={fetchData}
-            className="px-4 py-2 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-sm font-semibold transition-all flex items-center gap-2 text-white"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3 3L22 4" />
-            </svg>
-            Refresh Logs
-          </button>
-        </div>
+        <button
+          onClick={fetchData}
+          className="btn-secondary btn"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh Logs
+        </button>
       </div>
 
-      {/* Grid: Server Stats Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: 'Total Jobs', value: stats.TOTAL, color: 'text-zinc-200' },
+          { label: 'Total Jobs', value: stats.TOTAL, color: 'text-[var(--text-primary)]' },
           { label: 'Pending in Queue', value: stats.PENDING, color: 'text-yellow-400' },
           { label: 'Processing Active', value: stats.PROCESSING, color: 'text-sky-400' },
           { label: 'Jobs Completed', value: stats.COMPLETED, color: 'text-emerald-400' },
           { label: 'Jobs Failed', value: stats.FAILED, color: 'text-red-400' },
         ].map((stat, idx) => (
           <div key={idx} className="glass-card p-5 flex flex-col gap-1.5 text-left">
-            <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">{stat.label}</span>
+            <span className="text-[10px] text-[var(--text-secondary)] font-semibold uppercase tracking-wider">{stat.label}</span>
             <span className={`text-2xl font-black ${stat.color}`}>{stat.value}</span>
           </div>
         ))}
 
-        {/* AI Engine Status card */}
         <div className="glass-card p-5 flex flex-col gap-1.5 text-left border-emerald-500/20">
-          <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">AI Engine</span>
+          <span className="text-[10px] text-[var(--text-secondary)] font-semibold uppercase tracking-wider">AI Engine</span>
           <div className="flex items-center gap-1.5 mt-1">
             <span
               className={`w-2.5 h-2.5 rounded-full ${
                 health.status === 'healthy' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'
               }`}
-            ></span>
-            <span className="text-xs font-bold capitalize text-white">
+            />
+            <span className="text-xs font-bold capitalize text-[var(--text-white)]">
               {health.status === 'healthy' ? 'Active' : 'Offline'}
             </span>
           </div>
-          <span className="text-[9px] text-zinc-500 mt-1 truncate">
+          <span className="text-[9px] text-[var(--text-secondary)] mt-1 truncate">
             Device: {health.device} {health.cuda_available ? '(GPU)' : '(CPU)'}
           </span>
         </div>
       </div>
 
-      {/* Jobs Log Table */}
       <div className="glass-card overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-black/20">
-          <h3 className="font-bold text-white text-base">Historical Logs</h3>
+        <div className="px-6 py-4 border-b border-[var(--border-default)] flex justify-between items-center bg-[var(--bg-header)]">
+          <h3 className="font-bold text-[var(--text-white)] text-base">Historical Logs</h3>
         </div>
-        
+
         {loading && jobs.length === 0 ? (
-          <div className="text-center py-20 text-zinc-400">Loading jobs database...</div>
+          <div className="text-center py-20 text-[var(--text-secondary)]">Loading jobs database...</div>
         ) : jobs.length === 0 ? (
-          <div className="text-center py-20 text-zinc-500 italic">No job records found in JSON database.</div>
+          <div className="text-center py-20 text-[var(--text-secondary)] italic">No job records found in JSON database.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
-                <tr className="border-b border-white/5 bg-white/[0.01] text-zinc-400 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="border-b border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-secondary)] font-bold uppercase tracking-wider text-[10px]">
                   <th className="px-6 py-3 font-semibold">Job ID</th>
                   <th className="px-6 py-3 font-semibold">Status</th>
                   <th className="px-6 py-3 font-semibold">Progress</th>
@@ -174,27 +172,22 @@ export default function AdminPanel() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {jobs.map((job) => (
-                  <tr key={job.id} className="hover:bg-white/[0.01] transition-colors">
-                    <td className="px-6 py-4 font-mono text-[11px] text-zinc-300">
+                  <tr key={job.id} className="hover:bg-[var(--bg-card)] transition-colors">
+                    <td className="px-6 py-4 font-mono text-[11px] text-[var(--text-primary)]">
                       {job.id}
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          job.status === 'COMPLETED'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : job.status === 'FAILED'
-                            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                            : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                        }`}
-                      >
+                      <span className={`badge ${
+                        job.status === 'COMPLETED' ? 'badge-completed' : job.status === 'FAILED' ? 'badge-failed' : 'badge-pending'
+                      }`}>
+                        <span className="badge-dot" />
                         {job.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-zinc-300 font-semibold">
+                    <td className="px-6 py-4 text-[var(--text-primary)] font-semibold">
                       {job.status === 'COMPLETED' ? '100%' : `${Math.round(job.progress)}%`}
                     </td>
-                    <td className="px-6 py-4 text-zinc-400 text-xs">
+                    <td className="px-6 py-4 text-[var(--text-secondary)] text-xs">
                       {new Date(job.createdAt).toLocaleString(undefined, {
                         month: 'short',
                         day: 'numeric',
@@ -203,7 +196,7 @@ export default function AdminPanel() {
                       })}
                     </td>
                     <td className="px-6 py-4 max-w-[200px] truncate text-red-400/90 font-mono text-[11px]" title={job.error || undefined}>
-                      {job.error || <span className="text-zinc-600">-</span>}
+                      {job.error || <span className="text-[var(--text-tertiary)]">-</span>}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex gap-2 justify-end">
@@ -218,7 +211,7 @@ export default function AdminPanel() {
                         {job.status === 'COMPLETED' && (
                           <Link
                             href={`/dashboard?job=${job.id}`}
-                            className="px-2.5 py-1 rounded bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-zinc-300 text-[10px] transition-colors"
+                            className="px-2.5 py-1 rounded bg-[var(--bg-elevated)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] text-[10px] transition-colors"
                           >
                             Preview
                           </Link>

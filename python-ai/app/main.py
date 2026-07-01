@@ -10,6 +10,7 @@ from app.youtube_splitter import split_video_into_shorts, download_playlist_vide
 from app.ffmpeg_utils import has_audio, extract_audio_high_quality as extract_audio, merge_audio_video
 from app.tts import text_to_speech, SUPPORTED_LANGUAGES
 
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -282,3 +283,5 @@ def youtube_playlist(request: YoutubePlaylistRequest, background_tasks: Backgrou
 def text_to_speech_endpoint(request: TextToSpeechRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(run_tts_pipeline, request)
     return {"status": "processing", "jobId": request.jobId}
+
+

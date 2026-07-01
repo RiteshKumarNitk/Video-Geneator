@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from 'next/link';
+import { GitFork } from 'lucide-react';
+import Header from '@/components/Header';
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,73 +15,79 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased dark">
-      <body className="min-h-full flex flex-col bg-[#030303] text-zinc-100 selection:bg-emerald-500 selection:text-black">
-        {/* Ambient mesh background glow */}
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('chromaai-theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})()`,
+          }}
+        />
+      </head>
+      <body className="min-h-full flex flex-col selection:bg-emerald-500 selection:text-black">
         <div className="bg-mesh-glow" />
-
-        {/* Global Navigation Header */}
-        <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-black/60 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              <Link href="/" className="flex items-center gap-2 hover:opacity-95 transition-opacity">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-black text-lg shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-                  C
-                </div>
-                <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-                  Chroma<span className="text-emerald-400">AI</span>
-                </span>
-              </Link>
-
-              <nav className="hidden md:flex items-center gap-6">
-                <Link href="/" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-                  Home
-                </Link>
-                <Link href="/dashboard" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-                  Dashboard
-                </Link>
-                <Link href="/youtube" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-                  YouTube Shorts
-                </Link>
-                <Link href="/playlist" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-                  Playlists
-                </Link>
-                <Link href="/tts" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-                  Text to Speech
-                </Link>
-                <Link href="/admin" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-                  Admin
-                </Link>
-              </nav>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <Link
-                href="/dashboard"
-                className="relative group overflow-hidden px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 active:scale-95 bg-white text-black hover:bg-zinc-200 shadow-md hover:shadow-[0_0_20px_rgba(255,255,255,0.15)]"
-              >
-                Launch App
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content Area */}
+        <Header />
         <main className="flex-1 flex flex-col">
           {children}
         </main>
+        <footer className="border-t border-[var(--border-default)] bg-[var(--bg-footer)]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              <div className="flex flex-col gap-4">
+                <Link href="/" className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-black text-sm">
+                    C
+                  </div>
+                  <span className="font-extrabold text-base tracking-tight text-[var(--text-white)]">
+                    Chroma<span className="text-emerald-400">AI</span>
+                  </span>
+                </Link>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed max-w-xs">
+                  Self-hosted AI video background matting and content processing suite. All computation stays local.
+                </p>
+                <div className="flex items-center gap-2.5 mt-1">
+                  <a href="#" className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors">
+                    <GitFork size={16} />
+                  </a>
+                </div>
+              </div>
 
-        {/* Global Footer */}
-        <footer className="border-t border-white/5 bg-black/40 py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-zinc-500">
-            <div>
-              &copy; {new Date().getFullYear()} ChromaAI. All rights reserved. Self-Hosted Privacy First.
+              <div className="flex flex-col gap-3">
+                <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">Product</h4>
+                <div className="flex flex-col gap-2">
+                  <Link href="/dashboard" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Dashboard</Link>
+                  <Link href="/youtube" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">YouTube Shorts</Link>
+                  <Link href="/playlist" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Playlists</Link>
+                  <Link href="/tts" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Text to Speech</Link>
+                  <Link href="/chat" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">AI Chat</Link>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">Resources</h4>
+                <div className="flex flex-col gap-2">
+                  <Link href="/admin" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Admin & Queue</Link>
+                  <a href="#" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Documentation</a>
+                  <a href="#" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">API Reference</a>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">System</h4>
+                <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Local GPU/CPU Engine Active
+                </div>
+                <p className="text-[10px] text-[var(--text-tertiary)] leading-relaxed">
+                  v0.1.0 &middot; Self-Hosted &middot; Privacy First
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-6">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Local GPU/CPU Engine Active
-              </span>
+
+            <div className="mt-10 pt-6 border-t border-[var(--border-default)] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--text-tertiary)]">
+              <div>&copy; {new Date().getFullYear()} ChromaAI. All rights reserved.</div>
+              <div className="flex items-center gap-4">
+                <span>Built with PyTorch & Next.js</span>
+              </div>
             </div>
           </div>
         </footer>
