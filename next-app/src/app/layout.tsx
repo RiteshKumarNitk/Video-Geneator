@@ -41,8 +41,14 @@ export default function RootLayout({
                 <Link href="/youtube" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
                   YouTube Shorts
                 </Link>
+                <Link href="/playlist" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+                  Playlists
+                </Link>
+                <Link href="/tts" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+                  Text to Speech
+                </Link>
                 <Link href="/admin" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-                  Admin Panel
+                  Admin
                 </Link>
               </nav>
             </div>

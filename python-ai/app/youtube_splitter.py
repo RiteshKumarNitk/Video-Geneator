@@ -1,4 +1,6 @@
 import os
+import json
+import time
 import subprocess
 import logging
 import requests
@@ -199,3 +201,158 @@ def split_video_into_shorts(
                 os.remove(temp_download_path)
             except Exception as e:
                 logger.warning(f"Could not remove temp download video: {e}")
+
+def extract_playlist_info(playlist_url: str, max_videos: int = 20) -> list:
+    """Extract video entries from a YouTube playlist with retries and SSL fallback."""
+    def _parse_entries(raw_entries, limit):
+        result = []
+        for i, entry in enumerate(raw_entries):
+            if i >= limit:
+                break
+            if entry is None:
+                continue
+            if isinstance(entry, str):
+                result.append({'id': entry, 'title': f'Video {i+1}', 'url': f"https://www.youtube.com/watch?v={entry}", 'duration': 0, 'index': i + 1})
+            elif isinstance(entry, dict):
+                vid = entry.get('id') or entry.get('url', '')
+                if not vid:
+                    continue
+                result.append({
+                    'id': vid,
+                    'title': entry.get('title', f'Video {i+1}'),
+                    'url': f"https://www.youtube.com/watch?v={vid}",
+                    'duration': entry.get('duration', 0),
+                    'index': i + 1,
+                })
+        return result
+
+    base_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'force_generic_extractor': False,
+        'extractor_retries': 5,
+        'file_access_retries': 5,
+    }
+
+    # Try different combinations: flat/full, with/without legacy_ssl
+    strategies = [
+        {'extract_flat': True},
+        {'extract_flat': False},
+        {'extract_flat': True, 'legacyssl': True, 'http_headers': {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}},
+        {'extract_flat': False, 'legacyssl': True, 'http_headers': {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}},
+    ]
+
+    for attempt in range(3):
+        for strategy in strategies:
+            try:
+                opts = {**base_opts, **strategy}
+                with YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(playlist_url, download=False)
+                    if info is None:
+                        continue
+                    raw_entries = info.get('entries', [])
+                    entries = _parse_entries(raw_entries, max_videos)
+                    playlist_title = info.get('title', 'Untitled Playlist')
+                    method = 'flat' if strategy.get('extract_flat') else 'full'
+                    ssl_mode = 'legacy' if strategy.get('legacyssl') else 'modern'
+                    logger.info(f"Playlist '{playlist_title}': found {len(entries)} videos ({method}, {ssl_mode}, attempt={attempt+1})")
+                    if entries:
+                        return entries
+            except Exception as e:
+                logger.warning(f"Playlist extraction failed (strategy={strategy}, attempt={attempt+1}): {type(e).__name__}")
+                time.sleep(3 * (attempt + 1))
+                continue
+
+    # Last resort: use yt-dlp subprocess with --flat-playlist --dump-single-json
+    logger.info("Trying yt-dlp subprocess as last resort...")
+    try:
+        yt_dlp_bin = get_tool_path("yt-dlp")
+        if not yt_dlp_bin:
+            yt_dlp_bin = "yt-dlp"
+        cmd = [yt_dlp_bin, "--flat-playlist", "--dump-single-json", "--no-warnings", "--ignore-errors", playlist_url]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout)
+            raw_entries = data.get('entries', [])
+            entries = _parse_entries(raw_entries, max_videos)
+            playlist_title = data.get('title', 'Untitled Playlist')
+            logger.info(f"Playlist '{playlist_title}': found {len(entries)} videos via subprocess")
+            if entries:
+                return entries
+    except Exception as e:
+        logger.warning(f"Subprocess extraction failed: {e}")
+
+    raise ValueError("Could not extract any videos from the playlist URL.")
+
+def download_playlist_videos(
+    job_id: str,
+    playlist_url: str,
+    output_dir: str,
+    progress_callback_url: str,
+    video_quality: str = "best",
+    max_videos: int = 10
+) -> list:
+    """Download all videos from a YouTube playlist."""
+    os.makedirs(output_dir, exist_ok=True)
+
+    def send_progress(prog: int, detail: str = "PROCESSING"):
+        try:
+            requests.post(
+                progress_callback_url,
+                json={"jobId": job_id, "progress": prog, "status": "PROCESSING"},
+                timeout=2
+            )
+        except Exception as e:
+            logger.warning(f"Failed to post progress: {e}")
+
+    try:
+        send_progress(2, "Fetching playlist info...")
+        entries = extract_playlist_info(playlist_url, max_videos)
+
+        if not entries:
+            raise ValueError("No videos found in playlist.")
+
+        total = len(entries)
+        downloaded_files = []
+
+        for i, entry in enumerate(entries):
+            video_url = entry['url']
+            safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in entry['title'])
+            safe_title = safe_title.strip()[:80] or f"video_{entry['id']}"
+            output_path = os.path.join(output_dir, f"{i + 1:02d}_{safe_title}.mp4")
+
+            base_progress = 10 + int((i / total) * 85)
+            send_progress(base_progress, f"Downloading video {i+1}/{total}...")
+
+            def make_progress_hook(video_idx, total_videos):
+                base = 10 + int((video_idx / total_videos) * 85)
+                remaining = int((1 / total_videos) * 85) if total_videos > 0 else 85
+                def hook(pct):
+                    p = base + int(pct * remaining * 0.01)
+                    send_progress(min(p, 95), f"Downloading video {video_idx+1}/{total_videos}...")
+                return hook
+
+            success = download_youtube_video(video_url, output_path, video_quality, make_progress_hook(i, total))
+
+            if success and os.path.exists(output_path):
+                downloaded_files.append({
+                    'filename': os.path.basename(output_path),
+                    'title': entry['title'],
+                    'url': video_url,
+                })
+                logger.info(f"Downloaded [{i+1}/{total}]: {entry['title']}")
+            else:
+                if os.path.exists(output_path + ".mp4"):
+                    os.rename(output_path + ".mp4", output_path)
+                    downloaded_files.append({
+                        'filename': os.path.basename(output_path),
+                        'title': entry['title'],
+                        'url': video_url,
+                    })
+
+        send_progress(100, "Playlist download complete")
+        return downloaded_files
+
+    except Exception as e:
+        logger.error(f"Playlist download failed: {str(e)}")
+        raise

@@ -13,8 +13,8 @@ export async function GET(
     
     const job = await getJob(id);
 
-    if (!job || job.type !== 'SHORTS_SPLIT') {
-      return NextResponse.json({ error: 'YouTube split job not found' }, { status: 404 });
+    if (!job || (job.type !== 'SHORTS_SPLIT' && job.type !== 'PLAYLIST_DOWNLOAD')) {
+      return NextResponse.json({ error: 'Job not found or invalid type' }, { status: 404 });
     }
 
     // Resolve physical path to the clip

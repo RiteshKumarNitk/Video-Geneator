@@ -6,8 +6,9 @@ from pydantic import BaseModel, HttpUrl
 import requests
 
 from app.matting import process_video_matting
-from app.youtube_splitter import split_video_into_shorts
+from app.youtube_splitter import split_video_into_shorts, download_playlist_videos
 from app.ffmpeg_utils import has_audio, extract_audio_high_quality as extract_audio, merge_audio_video
+from app.tts import text_to_speech, SUPPORTED_LANGUAGES
 
 # Setup logging
 logging.basicConfig(
@@ -33,6 +34,22 @@ class YoutubeSplitRequest(BaseModel):
     videoQuality: str = "1080p"
     orientation: str = "horizontal"
     outputDir: str
+    progressCallbackUrl: str
+
+class YoutubePlaylistRequest(BaseModel):
+    jobId: str
+    playlistUrl: str
+    videoQuality: str = "best"
+    maxVideos: int = 10
+    outputDir: str
+    progressCallbackUrl: str
+
+class TextToSpeechRequest(BaseModel):
+    jobId: str
+    text: str
+    language: str = "hi"
+    slow: bool = False
+    outputPath: str
     progressCallbackUrl: str
 
 def run_pipeline(request: ProcessVideoRequest):
@@ -159,14 +176,88 @@ def run_youtube_split_pipeline(request: YoutubeSplitRequest):
         except Exception as webhook_err:
             logger.error(f"Failed to send failure webhook for split job {job_id}: {str(webhook_err)}")
 
+def run_playlist_pipeline(request: YoutubePlaylistRequest):
+    job_id = request.jobId
+    playlist_url = request.playlistUrl
+    video_quality = request.videoQuality
+    max_videos = request.maxVideos
+    output_dir = request.outputDir
+    callback_url = request.progressCallbackUrl
+
+    try:
+        logger.info(f"Starting playlist download pipeline for job: {job_id}")
+        files = download_playlist_videos(
+            job_id=job_id,
+            playlist_url=playlist_url,
+            output_dir=output_dir,
+            progress_callback_url=callback_url,
+            video_quality=video_quality,
+            max_videos=max_videos
+        )
+        logger.info(f"Job {job_id}: Playlist download complete. Files: {files}")
+        requests.post(
+            callback_url,
+            json={"jobId": job_id, "progress": 100, "status": "COMPLETED", "processedClips": [f['filename'] for f in files]},
+            timeout=5
+        )
+    except Exception as e:
+        logger.error(f"Job {job_id} playlist download failed: {str(e)}", exc_info=True)
+        try:
+            requests.post(
+                callback_url,
+                json={"jobId": job_id, "progress": 0, "status": "FAILED", "error": str(e)},
+                timeout=5
+            )
+        except Exception as webhook_err:
+            logger.error(f"Failed to send failure webhook for job {job_id}: {str(webhook_err)}")
+
+def run_tts_pipeline(request: TextToSpeechRequest):
+    job_id = request.jobId
+    text = request.text
+    language = request.language
+    slow = request.slow
+    output_path = request.outputPath
+    callback_url = request.progressCallbackUrl
+
+    try:
+        logger.info(f"Starting TTS pipeline for job: {job_id} (lang={language}, chars={len(text)})")
+        requests.post(callback_url, json={"jobId": job_id, "progress": 10, "status": "PROCESSING"}, timeout=2)
+
+        success = text_to_speech(text, output_path, language, slow)
+
+        if not success:
+            raise RuntimeError("TTS generation failed.")
+
+        logger.info(f"Job {job_id}: TTS complete. File saved to {output_path}")
+        requests.post(
+            callback_url,
+            json={"jobId": job_id, "progress": 100, "status": "COMPLETED", "processedVideo": output_path},
+            timeout=5
+        )
+    except Exception as e:
+        logger.error(f"Job {job_id} TTS failed: {str(e)}", exc_info=True)
+        try:
+            requests.post(
+                callback_url,
+                json={"jobId": job_id, "progress": 0, "status": "FAILED", "error": str(e)},
+                timeout=5
+            )
+        except Exception as webhook_err:
+            logger.error(f"Failed to send failure webhook for TTS job {job_id}: {str(webhook_err)}")
+
 @app.get("/health")
 def health_check():
     import torch
     return {
         "status": "healthy",
         "cuda_available": torch.cuda.is_available(),
-        "device": "cuda" if torch.cuda.is_available() else "cpu"
+        "device": "cuda" if torch.cuda.is_available() else "cpu",
+        "tts_languages": {k: v for k, v in SUPPORTED_LANGUAGES.items()},
     }
+
+@app.get("/tts-languages")
+def tts_languages():
+    return SUPPORTED_LANGUAGES
 
 @app.post("/process-video")
 def process_video(request: ProcessVideoRequest, background_tasks: BackgroundTasks):
@@ -180,4 +271,14 @@ def process_video(request: ProcessVideoRequest, background_tasks: BackgroundTask
 @app.post("/youtube-split")
 def youtube_split(request: YoutubeSplitRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(run_youtube_split_pipeline, request)
+    return {"status": "processing", "jobId": request.jobId}
+
+@app.post("/youtube-playlist")
+def youtube_playlist(request: YoutubePlaylistRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_playlist_pipeline, request)
+    return {"status": "processing", "jobId": request.jobId}
+
+@app.post("/text-to-speech")
+def text_to_speech_endpoint(request: TextToSpeechRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_tts_pipeline, request)
     return {"status": "processing", "jobId": request.jobId}

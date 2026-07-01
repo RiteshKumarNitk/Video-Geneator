@@ -11,11 +11,13 @@ export interface Job {
   duration: number | null;
   error: string | null;
   backgroundType?: string;
-  type?: 'MATTING' | 'SHORTS_SPLIT';
+  type?: 'MATTING' | 'SHORTS_SPLIT' | 'PLAYLIST_DOWNLOAD' | 'TEXT_TO_SPEECH' | 'GENERATION';
   youtubeUrl?: string | null;
   processedClips?: string[];
   videoQuality?: string;
   orientation?: string;
+  ttsLanguage?: string;
+  ttsSlow?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,7 +50,7 @@ export async function getJob(id: string): Promise<Job | null> {
 
 export async function createJob(data: Partial<Job> & { id: string }): Promise<Job> {
   const jobs = await readJobs();
-  const newJob: Job = {
+  const base: Job = {
     id: data.id,
     status: 'PENDING',
     originalVideo: data.originalVideo || null,
@@ -64,8 +66,8 @@ export async function createJob(data: Partial<Job> & { id: string }): Promise<Jo
     orientation: 'horizontal',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    ...data,
   };
+  const newJob: Job = { ...base, ...data as Record<string, any> };
   jobs.push(newJob);
   await writeJobs(jobs);
   return newJob;

@@ -9,17 +9,21 @@ interface QueueItem {
   videoPath: string | null;
   backgroundType: string;
   callbackBase: string;
-  type: 'MATTING' | 'SHORTS_SPLIT';
+  type: 'MATTING' | 'SHORTS_SPLIT' | 'PLAYLIST_DOWNLOAD' | 'TEXT_TO_SPEECH' | 'GENERATION';
   youtubeUrl: string | null;
   clipDuration: number;
   videoQuality: string;
   orientation: string;
+  playlistUrl?: string;
+  maxVideos?: number;
+  ttsText?: string;
+  ttsLanguage?: string;
+  ttsSlow?: boolean;
 }
 
 const queue: QueueItem[] = [];
 let isProcessing = false;
 
-// Default URLs for local dev or Docker networks
 const PYTHON_AI_URL = process.env.PYTHON_AI_URL || 'http://localhost:8000';
 
 async function processQueue() {
@@ -27,19 +31,16 @@ async function processQueue() {
   isProcessing = true;
   
   const item = queue.shift()!;
-  const { jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, clipDuration, videoQuality, orientation } = item;
-  console.log(`[Queue] Starting processing for job ${jobId} (type: ${type}, bg: ${backgroundType}, quality: ${videoQuality}, orientation: ${orientation})`);
+  const { jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, clipDuration, videoQuality, orientation, playlistUrl, maxVideos, ttsText, ttsLanguage, ttsSlow } = item;
+  console.log(`[Queue] Starting processing for job ${jobId} (type: ${type})`);
 
   try {
-    // 1. Update database job status to PROCESSING
     await updateJob(jobId, { status: 'PROCESSING', progress: 0 });
 
-    // 2. Set up Promise waiting for status updates from webhook callback
     const processPromise = new Promise<void>((resolve, reject) => {
-      // 20 minutes timeout
       const timeout = setTimeout(() => {
         jobEvents.off(`status:${jobId}`, onStatusUpdate);
-        reject(new Error('AI processing timed out after 20 minutes.'));
+        reject(new Error('Processing timed out after 20 minutes.'));
       }, 20 * 60 * 1000);
 
       const onStatusUpdate = (data: { status: string; error?: string }) => {
@@ -50,26 +51,44 @@ async function processQueue() {
         } else if (data.status === 'FAILED') {
           clearTimeout(timeout);
           jobEvents.off(`status:${jobId}`, onStatusUpdate);
-          reject(new Error(data.error || 'AI video processing failed.'));
+          reject(new Error(data.error || 'Processing failed.'));
         }
       };
 
       jobEvents.on(`status:${jobId}`, onStatusUpdate);
     });
 
-    // 3. Trigger FastAPI background task based on job type
     let response;
     if (type === 'SHORTS_SPLIT') {
       response = await fetch(`${PYTHON_AI_URL}/youtube-split`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jobId,
-          youtubeUrl,
-          clipDuration,
-          videoQuality,
-          orientation,
+          jobId, youtubeUrl, clipDuration, videoQuality, orientation,
           outputDir: getStoragePath(`processed/${jobId}`),
+          progressCallbackUrl: `${callbackBase}/api/job/update-progress`,
+        }),
+      });
+    } else if (type === 'PLAYLIST_DOWNLOAD') {
+      response = await fetch(`${PYTHON_AI_URL}/youtube-playlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId, playlistUrl, videoQuality, maxVideos,
+          outputDir: getStoragePath(`processed/${jobId}`),
+          progressCallbackUrl: `${callbackBase}/api/job/update-progress`,
+        }),
+      });
+    } else if (type === 'TEXT_TO_SPEECH') {
+      response = await fetch(`${PYTHON_AI_URL}/text-to-speech`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId,
+          text: ttsText,
+          language: ttsLanguage || 'hi',
+          slow: ttsSlow || false,
+          outputPath: getStoragePath(`processed/${jobId}.mp3`),
           progressCallbackUrl: `${callbackBase}/api/job/update-progress`,
         }),
       });
@@ -78,8 +97,7 @@ async function processQueue() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jobId,
-          videoPath,
+          jobId, videoPath,
           outputPath: getStoragePath(`processed/${jobId}.mp4`),
           progressCallbackUrl: `${callbackBase}/api/job/update-progress`,
           backgroundType,
@@ -92,7 +110,6 @@ async function processQueue() {
       throw new Error(`FastAPI request failed: ${response.statusText}. Details: ${errorText}`);
     }
 
-    // 4. Wait for processing to complete
     await processPromise;
     console.log(`[Queue] Job ${jobId} completed successfully.`);
 
@@ -104,7 +121,6 @@ async function processQueue() {
     });
   } finally {
     isProcessing = false;
-    // Process next item in the queue
     processQueue();
   }
 }
@@ -114,23 +130,21 @@ export async function addVideoJob(
   videoPath: string | null, 
   backgroundType: string = 'green',
   nextjsInternalUrl?: string,
-  type: 'MATTING' | 'SHORTS_SPLIT' = 'MATTING',
+  type: 'MATTING' | 'SHORTS_SPLIT' | 'PLAYLIST_DOWNLOAD' | 'TEXT_TO_SPEECH' | 'GENERATION' = 'MATTING',
   youtubeUrl: string | null = null,
   clipDuration: number = 30,
   videoQuality: string = '1080p',
-  orientation: string = 'horizontal'
+  orientation: string = 'horizontal',
+  playlistUrl?: string,
+  maxVideos?: number,
+  ttsText?: string,
+  ttsLanguage?: string,
+  ttsSlow?: boolean
 ) {
   const callbackBase = nextjsInternalUrl || process.env.NEXTJS_INTERNAL_URL || 'http://localhost:3000';
   queue.push({ 
-    jobId, 
-    videoPath, 
-    backgroundType, 
-    callbackBase, 
-    type, 
-    youtubeUrl, 
-    clipDuration,
-    videoQuality,
-    orientation
+    jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, clipDuration,
+    videoQuality, orientation, playlistUrl, maxVideos, ttsText, ttsLanguage, ttsSlow
   });
   processQueue();
   return { jobId };

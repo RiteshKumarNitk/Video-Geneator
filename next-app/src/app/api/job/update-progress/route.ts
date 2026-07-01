@@ -5,7 +5,7 @@ import { getStoragePath } from '@/lib/storage';
 
 export async function POST(req: Request) {
   try {
-    const { jobId, progress, status, error, processedClips } = await req.json();
+    const { jobId, progress, status, error, processedClips, processedVideo } = await req.json();
 
     if (!jobId || progress === undefined || !status) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       status,
       progress: parseFloat(progress),
       error: error || null,
-      ...(processedVideoPath ? { processedVideo: processedVideoPath } : {}),
+      ...(processedVideo ? { processedVideo } : processedVideoPath ? { processedVideo: processedVideoPath } : {}),
       ...(processedClips ? { processedClips } : {}),
     });
 
