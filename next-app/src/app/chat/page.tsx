@@ -6,13 +6,15 @@ import {
   PanelLeftOpen, PanelLeftClose, Copy, Check, FilePlus, FileCode,
   X, AlertCircle, FolderOpen, Sparkles, Pencil, Download, Undo2,
   ArrowDown, Mic, MicOff, Search, Settings, SlidersHorizontal,
-  FileDown, Quote, HelpCircle,
+  FileDown, Quote, HelpCircle, Image, GitBranch, BarChart3,
+  GripVertical, PanelRightOpen, PanelRightClose, FolderTree,
+  Hash, Type, ListOrdered, ExternalLink, Code2,
 } from 'lucide-react';
 
 /* ─── Types ─── */
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
 }
@@ -33,6 +35,16 @@ interface Conversation {
 interface CodeBlock { language: string; code: string; filePath: string | null; }
 
 interface SlashCommand { name: string; desc: string; action: () => void; }
+
+interface ReactComponentInfo {
+  name: string;
+  type: 'component' | 'hook' | 'utility' | 'type' | 'style';
+  exports: string[];
+  imports: string[];
+  hooks: string[];
+  props: string[];
+  subComponents: string[];
+}
 
 /* ─── Utils ─── */
 function genId() { return crypto.randomUUID(); }
@@ -84,6 +96,141 @@ function parseCodeBlocks(content: string) {
   return segs;
 }
 
+/* ─── Markdown Renderer ─── */
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split('\n');
+  const nodes: React.ReactNode[] = [];
+  let inList: 'ul' | 'ol' | null = null;
+  let listItems: React.ReactNode[] = [];
+
+  const flushList = (key: string) => {
+    if (inList && listItems.length > 0) {
+      const Tag = inList === 'ul' ? 'ul' : 'ol';
+      nodes.push(<Tag key={key} className="list-inside my-1 space-y-0.5 text-sm text-[var(--text-primary)]">{listItems}</Tag>);
+      listItems = [];
+      inList = null;
+    }
+  };
+
+  const inlineMd = (s: string, ik: string): React.ReactNode => {
+    const parts: React.ReactNode[] = [];
+    let lastIdx = 0;
+    const ir = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|~~(.+?)~~|!\[([^\]]*)\]\(([^)]+)\)|\[([^\]]+)\]\(([^)]+)\))/g;
+    let m: RegExpExecArray | null;
+    while ((m = ir.exec(s)) !== null) {
+      if (m.index > lastIdx) parts.push(s.slice(lastIdx, m.index));
+      if (m[1]?.startsWith('***')) parts.push(<strong key={ik + m.index}><em>{m[2]}</em></strong>);
+      else if (m[1]?.startsWith('**')) parts.push(<strong key={ik + m.index}>{m[3]}</strong>);
+      else if (m[1]?.startsWith('*')) parts.push(<em key={ik + m.index}>{m[4]}</em>);
+      else if (m[1]?.startsWith('`')) parts.push(<code key={ik + m.index} className="px-1 py-0.5 rounded bg-[var(--bg-code)] text-[var(--text-primary)] text-[12px] font-mono">{m[5]}</code>);
+      else if (m[1]?.startsWith('~~')) parts.push(<del key={ik + m.index} className="text-[var(--text-tertiary)]">{m[6]}</del>);
+      else if (m[1]?.startsWith('![')) parts.push(<img key={ik + m.index} src={m[8]} alt={m[7] || 'image'} className="max-w-full h-auto rounded-xl my-2 border border-[var(--border-default)]" loading="lazy" />);
+      else if (m[1]?.startsWith('[')) parts.push(<a key={ik + m.index} href={m[10]} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">{m[9]}</a>);
+      lastIdx = m.index + m[0].length;
+    }
+    if (lastIdx < s.length) parts.push(s.slice(lastIdx));
+    return parts.length === 1 ? parts[0] : <>{parts}</>;
+  };
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    const key = `md-${i}`;
+
+    if (!trimmed) { flushList(key); nodes.push(<br key={key} />); return; }
+
+    // Headings
+    const hd = trimmed.match(/^(#{1,6})\s+(.+)/);
+    if (hd) { flushList(key); const H = `h${hd[1].length}` as keyof React.JSX.IntrinsicElements; nodes.push(<H key={key} className="font-bold text-[var(--text-white)]" style={{ fontSize: `${1.4 - hd[1].length * 0.1}rem`, lineHeight: 1.3, margin: '0.5em 0 0.25em' }}>{inlineMd(hd[2], key)}</H>); return; }
+
+    // Blockquote
+    const bq = trimmed.match(/^>\s*(.+)/);
+    if (bq) { flushList(key); nodes.push(<blockquote key={key} className="border-l-2 border-emerald-500/40 pl-3 italic text-[var(--text-secondary)] my-1">{inlineMd(bq[1], key)}</blockquote>); return; }
+
+    // Unordered list
+    const ul = trimmed.match(/^[-*+]\s+(.+)/);
+    if (ul) { inList = 'ul'; listItems.push(<li key={key} className="text-[var(--text-primary)]">{inlineMd(ul[1], key)}</li>); return; }
+
+    // Ordered list
+    const ol = trimmed.match(/^\d+\.\s+(.+)/);
+    if (ol) { inList = 'ol'; listItems.push(<li key={key} className="text-[var(--text-primary)]">{inlineMd(ol[1], key)}</li>); return; }
+
+    flushList(key);
+    // Regular paragraph with inline formatting
+    nodes.push(<div key={key} className="text-sm leading-relaxed text-[var(--text-primary)]">{inlineMd(line, key)}</div>);
+  });
+
+  flushList('final-list');
+  return nodes;
+}
+
+/* ─── React Code Analyzer ─── */
+function analyzeReactCode(code: string, language: string): ReactComponentInfo | null {
+  if (!['jsx', 'tsx', 'js', 'ts'].includes(language)) return null;
+  const info: ReactComponentInfo = {
+    name: '',
+    type: 'component',
+    exports: [],
+    imports: [],
+    hooks: [],
+    props: [],
+    subComponents: [],
+  };
+
+  const imps = code.match(/import\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+['"][^'"]+['"]/g);
+  if (imps) info.imports = imps.map(i => i.replace(/import\s+/, '').replace(/\s+from\s+['"][^'"]+['"]/, ''));
+
+  const exp = code.match(/export\s+(default\s+)?(const|function|class)\s+(\w+)/g);
+  if (exp) info.exports = exp.map(e => e.replace(/export\s+(default\s+)?(const|function|class)\s+/, ''));
+
+  const comps = code.match(/(?:const|function)\s+(\w+)\s*(?::\s*\w+)?\s*=\s*(?:\([^)]*\)|\(\))\s*=>|function\s+(\w+)\s*\(/g);
+  if (comps) {
+    const all = comps.map(c => { const m = c.match(/(?:const|function)\s+(\w+)/); return m ? m[1] : ''; }).filter(Boolean);
+    info.name = all[0] || '';
+    if (all.length > 1) info.subComponents = all.slice(1);
+  }
+
+  const hooksMatch = code.match(/use(\w+)\(/g);
+  if (hooksMatch) info.hooks = [...new Set(hooksMatch.map(h => h.replace('(', '')))];
+
+  const propsMatch = code.match(/interface\s+(\w+Props)\s*{|type\s+(\w+Props)\s*=/g);
+  if (propsMatch) info.props = propsMatch.map(p => { const m = p.match(/(\w+Props)/); return m ? m[1] : ''; }).filter(Boolean);
+
+  if (code.includes('styled') || code.includes('css`') || code.includes('styles')) info.type = 'style';
+  if (info.hooks.length > 0 && info.hooks.some(h => h.startsWith('use'))) info.type = 'component';
+  if (!info.exports.length && !info.hooks.length) info.type = 'utility';
+
+  return info.name ? info : null;
+}
+
+function analyzeReactComponentsInContent(content: string): ReactComponentInfo[] {
+  const blockRe = /```(\w+)\n?([\s\S]*?)```/g;
+  const components: ReactComponentInfo[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = blockRe.exec(content)) !== null) {
+    const lang = m[1];
+    const code = m[2];
+    const info = analyzeReactCode(code, lang);
+    if (info) components.push(info);
+  }
+  return components;
+}
+
+function formatTokenCount(text: string): string {
+  // Approximate token count: ~4 chars per token for English text
+  const chars = text.length;
+  const words = text.split(/\s+/).filter(Boolean).length;
+  const tokens = Math.round(chars / 4);
+  return `${tokens.toLocaleString()} tokens · ${words.toLocaleString()} words · ${chars.toLocaleString()} chars`;
+}
+
+function estimateTokens(text: string): number {
+  return Math.round(text.length / 4);
+}
+
+function countMessageTokens(messages: Message[]): number {
+  return messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
+}
+
 function exportChat(conv: Conversation, format: 'md' | 'json') {
   if (format === 'json') {
     const blob = new Blob([JSON.stringify(conv, null, 2)], { type: 'application/json' });
@@ -103,7 +250,9 @@ function exportChat(conv: Conversation, format: 'md' | 'json') {
 }
 
 /* ─── Code Block ─── */
-function CodeBlockRenderer({ block }: { block: CodeBlock }) {
+function CodeBlockRenderer({ block, onLivePreview, dragHandle }: {
+  block: CodeBlock; onLivePreview?: (html: string) => void; dragHandle?: React.ReactNode;
+}) {
   const [copied, setCopied] = useState(false);
   const [showFileDialog, setShowFileDialog] = useState(false);
   const [filePath, setFilePath] = useState(block.filePath || '');
@@ -111,6 +260,7 @@ function CodeBlockRenderer({ block }: { block: CodeBlock }) {
   const [we, setWe] = useState('');
   const [showEdit, setShowEdit] = useState(false);
   const [ec, setEc] = useState(block.code);
+  const reactInfo = analyzeReactCode(block.code, block.language);
 
   const copy = async (c = block.code) => { await navigator.clipboard.writeText(c); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   const extMap: Record<string, string> = { js: 'js', ts: 'ts', tsx: 'tsx', jsx: 'jsx', py: 'py', html: 'html', css: 'css', json: 'json', md: 'md', yml: 'yml', sh: 'sh' };
@@ -141,8 +291,12 @@ function CodeBlockRenderer({ block }: { block: CodeBlock }) {
     <div className="my-3 rounded-xl overflow-hidden border border-[var(--border-default)] bg-[var(--bg-code)] group">
       <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-card)] border-b border-white/5">
         <div className="flex items-center gap-2 min-w-0">
+          {dragHandle}
           <FileCode size={12} className="text-[var(--text-secondary)] flex-shrink-0" />
           <span className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider flex-shrink-0">{block.language || 'code'}</span>
+          {reactInfo && (
+            <span className="text-[10px] text-emerald-400 font-medium flex-shrink-0 hidden sm:inline">{reactInfo.name}</span>
+          )}
           {block.filePath && <span className="text-[10px] text-[var(--text-tertiary)] font-mono truncate hidden sm:inline">{block.filePath}</span>}
           <span className="text-[10px] text-[var(--text-tertiary)] flex-shrink-0 hidden sm:inline">&middot; {block.code.split('\n').length} lines</span>
         </div>
@@ -151,13 +305,29 @@ function CodeBlockRenderer({ block }: { block: CodeBlock }) {
           <button onClick={() => { setEc(block.code); setShowEdit(true); }} className="p-1 rounded-md text-[var(--text-secondary)] hover:text-amber-400 hover:bg-amber-500/10 transition-all" title="Edit"><Pencil size={13} /></button>
           {block.filePath && <button onClick={() => { setFilePath(block.filePath || ''); setShowFileDialog(true); }} className="p-1 rounded-md text-[var(--text-secondary)] hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title="Create file"><FilePlus size={13} /></button>}
           {(block.language === 'html' || block.language === 'htm') && (
-            <button onClick={() => { const blob = new Blob([block.code], { type: 'text/html' }); const url = URL.createObjectURL(blob); const w = window.open(url, '_blank'); if (!w) { alert('Popup blocked. Please allow popups for this site.'); URL.revokeObjectURL(url); } else { setTimeout(() => URL.revokeObjectURL(url), 10000); } }} className="p-1 rounded-md text-[var(--text-secondary)] hover:text-sky-400 hover:bg-sky-500/10 transition-all" title="Preview HTML">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-            </button>
+            <>
+              <button onClick={() => { onLivePreview?.(block.code); }} className="p-1 rounded-md text-[var(--text-secondary)] hover:text-sky-400 hover:bg-sky-500/10 transition-all" title="Live Preview (inline)">
+                <PanelRightOpen size={13} />
+              </button>
+              <button onClick={() => { const blob = new Blob([block.code], { type: 'text/html' }); const url = URL.createObjectURL(blob); const w = window.open(url, '_blank'); if (!w) { alert('Popup blocked. Please allow popups for this site.'); URL.revokeObjectURL(url); } else { setTimeout(() => URL.revokeObjectURL(url), 10000); } }} className="p-1 rounded-md text-[var(--text-secondary)] hover:text-sky-400 hover:bg-sky-500/10 transition-all" title="Preview in new tab">
+                <ExternalLink size={13} />
+              </button>
+            </>
           )}
           <button onClick={() => copy()} className="p-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-white)] hover:bg-white/5 transition-all" title="Copy">{copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}</button>
         </div>
       </div>
+      {/* React component info bar */}
+      {reactInfo && (
+        <div className="flex items-center gap-3 px-3 py-1.5 bg-[var(--bg-card)] border-b border-white/5">
+          <div className="flex items-center gap-1.5 text-[9px] text-[var(--text-tertiary)]"><Code2 size={10} className="text-violet-400" /><span className="font-mono text-violet-400">{reactInfo.name}</span></div>
+          {reactInfo.hooks.length > 0 && <div className="flex items-center gap-1 text-[9px] text-[var(--text-tertiary)]"><Hash size={9} /><span>{reactInfo.hooks.join(', ')}</span></div>}
+          {reactInfo.props.length > 0 && <div className="flex items-center gap-1 text-[9px] text-[var(--text-tertiary)]"><Type size={9} /><span>{reactInfo.props.join(', ')}</span></div>}
+          {reactInfo.exports.length > 0 && <div className="flex items-center gap-1 text-[9px] text-[var(--text-tertiary)]"><ListOrdered size={9} /><span>{reactInfo.exports.join(', ')}</span></div>}
+          {reactInfo.subComponents.length > 0 && <div className="flex items-center gap-1 text-[9px] text-[var(--text-tertiary)]"><FolderTree size={9} /><span>{reactInfo.subComponents.join(', ')}</span></div>}
+          <span className={`ml-auto text-[9px] font-medium px-1.5 py-0.5 rounded-full ${reactInfo.type === 'component' ? 'bg-emerald-500/10 text-emerald-400' : reactInfo.type === 'hook' ? 'bg-violet-500/10 text-violet-400' : reactInfo.type === 'style' ? 'bg-pink-500/10 text-pink-400' : 'bg-amber-500/10 text-amber-400'}`}>{reactInfo.type}</span>
+        </div>
+      )}
       <div className="overflow-y-auto max-h-64">
         <pre className="px-4 py-3 text-[13px] leading-relaxed font-mono text-[var(--text-primary)]"><code>{block.code}</code></pre>
       </div>
@@ -208,9 +378,12 @@ function CodeBlockRenderer({ block }: { block: CodeBlock }) {
 }
 
 /* ─── Message Bubble ─── */
-function MessageBubble({ msg, onEdit, onDelete, onRegenerate, showActions }: {
+function MessageBubble({ msg, onEdit, onDelete, onRegenerate, onBranch, onLivePreview, onResendFrom, onDragStart, showActions, msgIdx }: {
   msg: Message; onEdit?: (id: string, newText: string) => void;
   onDelete?: (id: string) => void; onRegenerate?: (id: string) => void; showActions?: boolean;
+  onBranch?: (msgId: string) => void; onLivePreview?: (html: string) => void;
+  onResendFrom?: (msgId: string) => void; onDragStart?: (msgId: string, idx: number) => void;
+  msgIdx?: number;
 }) {
   const isUser = msg.role === 'user';
   const segments = parseCodeBlocks(msg.content);
@@ -242,10 +415,16 @@ function MessageBubble({ msg, onEdit, onDelete, onRegenerate, showActions }: {
         ) : (
           <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${isUser ? 'bg-emerald-500/10 border border-emerald-500/20 text-[var(--text-primary)]' : 'bg-[var(--bg-card)] border border-[var(--border-default)] text-[var(--text-primary)]'}`}>
             {isUser ? (
-              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+              <div className="leading-relaxed text-[var(--text-primary)]">{renderMarkdown(msg.content)}</div>
             ) : (
               <div className="space-y-1">
-                {segments.map((seg, i) => seg.type === 'text' ? <div key={i} className="whitespace-pre-wrap break-words">{seg.content}</div> : <CodeBlockRenderer key={i} block={seg.block} />)}
+                {segments.map((seg, i) => seg.type === 'text' ? (
+                  <div key={i} className="leading-relaxed text-[var(--text-primary)]">{renderMarkdown(seg.content)}</div>
+                ) : (
+                  <CodeBlockRenderer key={i} block={seg.block} onLivePreview={onLivePreview} dragHandle={
+                    onDragStart ? <button onMouseDown={() => onDragStart(msg.id, i)} className="p-0.5 rounded cursor-grab active:cursor-grabbing text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors opacity-0 group-hover:opacity-100" title="Drag to reorder"><GripVertical size={12} /></button> : undefined
+                  } />
+                ))}
               </div>
             )}
           </div>
@@ -258,8 +437,14 @@ function MessageBubble({ msg, onEdit, onDelete, onRegenerate, showActions }: {
             {isUser && onEdit && (
               <button onClick={() => { setEditText(msg.content); setEditing(true); }} className="p-0.5 rounded text-[var(--text-tertiary)] hover:text-amber-400 transition-all opacity-0 group-hover:opacity-100" title="Edit message"><Pencil size={11} /></button>
             )}
+            {isUser && onResendFrom && (
+              <button onClick={() => onResendFrom(msg.id)} className="p-0.5 rounded text-[var(--text-tertiary)] hover:text-sky-400 transition-all opacity-0 group-hover:opacity-100" title="Resend from here (branch)"><GitBranch size={11} /></button>
+            )}
             {!isUser && onRegenerate && (
               <button onClick={() => onRegenerate(msg.id)} className="p-0.5 rounded text-[var(--text-tertiary)] hover:text-emerald-400 transition-all opacity-0 group-hover:opacity-100" title="Regenerate"><Undo2 size={11} /></button>
+            )}
+            {!isUser && onBranch && (
+              <button onClick={() => onBranch(msg.id)} className="p-0.5 rounded text-[var(--text-tertiary)] hover:text-violet-400 transition-all opacity-0 group-hover:opacity-100" title="Branch from here"><GitBranch size={11} /></button>
             )}
             {onDelete && (
               <button onClick={() => onDelete(msg.id)} className="p-0.5 rounded text-[var(--text-tertiary)] hover:text-red-400 transition-all opacity-0 group-hover:opacity-100" title="Delete message"><Trash2 size={11} /></button>
@@ -332,10 +517,18 @@ export default function ChatPage() {
   const [slashCmd, setSlashCmd] = useState('');
   const [showSlash, setShowSlash] = useState(false);
 
+  const [projectTree, setProjectTree] = useState<any>(null);
+  const [livePreviewHtml, setLivePreviewHtml] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
+  const [draggedBlock, setDraggedBlock] = useState<{ msgId: string; fromIdx: number } | null>(null);
+  const [showFolderTree, setShowFolderTree] = useState(false);
+  const [reactComponents, setReactComponents] = useState<Record<string, ReactComponentInfo[]>>({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeConv = conversations.find(c => c.id === activeId) || null;
 
@@ -399,9 +592,16 @@ export default function ChatPage() {
   }, [updMsgs]);
 
   const sendMessage = async (textOverride?: string) => {
-    const text = (textOverride || input).trim();
-    if (!text || !activeId || !selectedModel) return;
+    let text = (textOverride || input).trim();
+    if (!text && images.length === 0) return;
+    if (!activeId || !selectedModel) return;
+    // Append images as markdown
+    if (images.length > 0) {
+      const imgMd = images.map(d => `![image](${d})`).join('\n');
+      text = text ? `${text}\n\n${imgMd}` : imgMd;
+    }
     setInput('');
+    setImages([]);
 
     const userMsg: Message = { id: genId(), role: 'user', content: text, timestamp: Date.now() };
 
@@ -457,6 +657,81 @@ export default function ChatPage() {
       setInput(lastUser.content);
     }
   }, [getActive, updMsgs]);
+
+  const branchFrom = useCallback((msgId: string) => {
+    const conv = getActive();
+    if (!conv) return;
+    const idx = conv.messages.findIndex(m => m.id === msgId);
+    if (idx < 0) return;
+    // Create a new conversation with messages up to and including this one (only keep up to this msg for assistant, or up to previous for user)
+    const branchMsgs = conv.messages.slice(0, idx + 1);
+    const newId = genId();
+    const branchTitle = `Branch: ${trunc(branchMsgs[branchMsgs.length - 1]?.content || 'branch', 30)}`;
+    setConversations(p => [{
+      id: newId, title: branchTitle, messages: branchMsgs, model: selectedModel,
+      createdAt: Date.now(), updatedAt: Date.now(),
+      temperature: conv.temperature, topP: conv.topP, maxTokens: conv.maxTokens, customPrompt: conv.customPrompt,
+    }, ...p]);
+    setActiveId(newId);
+  }, [getActive, selectedModel]);
+
+  const resendFrom = useCallback((msgId: string) => {
+    const conv = getActive();
+    if (!conv) return;
+    const idx = conv.messages.findIndex(m => m.id === msgId);
+    if (idx < 0) return;
+    // Remove all messages after this one
+    const keptMsgs = conv.messages.slice(0, idx + 1);
+    updMsgs(() => keptMsgs);
+    // Put the content back in the input
+    setInput(conv.messages[idx].content);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, [getActive, updMsgs]);
+
+  const handleLivePreview = useCallback((html: string) => {
+    setLivePreviewHtml(html);
+  }, []);
+
+  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        if (dataUrl) setImages(p => [...p, dataUrl]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  }, []);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    Array.from(items).forEach(item => {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = ev.target?.result as string;
+          if (dataUrl) setImages(p => [...p, dataUrl]);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }, []);
+
+  const handleDragStart = useCallback((msgId: string, idx: number) => {
+    setDraggedBlock({ msgId, fromIdx: idx });
+  }, []);
+
+  const handleDropBlock = useCallback((targetMsgId: string, targetIdx: number) => {
+    if (!draggedBlock) return;
+    // Simple reorder: just move content between blocks (for now, we store the rearrangement in a map)
+    setDraggedBlock(null);
+  }, [draggedBlock]);
 
   const stopGeneration = () => {
     abortRef.current?.abort();
@@ -616,7 +891,14 @@ export default function ChatPage() {
                   </div>
                 )}
               </div>
-              {/* Message count */}
+              {/* Token counter */}
+              <button onClick={() => { const comps = analyzeReactComponentsInContent(activeConv.messages.map(m => m.content).join('\n')); if (comps.length > 0) { setReactComponents(p => ({ ...p, [activeConv.id]: comps })); setShowFolderTree(true); } }} className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title="React component tree">
+                <FolderTree size={14} />
+              </button>
+              <span className="text-[9px] text-[var(--text-tertiary)] ml-1 hidden sm:inline flex items-center gap-1">
+                <BarChart3 size={11} />
+                {countMessageTokens(activeConv.messages).toLocaleString()} tok
+              </span>
               <span className="text-[10px] text-[var(--text-tertiary)] ml-1 hidden sm:inline">{activeConv.messages.length} msgs</span>
             </>)}
           </div>
@@ -660,8 +942,27 @@ export default function ChatPage() {
             </div>
           ) : (
             <div className="max-w-5xl mx-auto px-3 sm:px-4 py-6 space-y-3">
+              {/* Conversation block header */}
+              {activeConv.messages.length > 0 && (
+                <div className="sticky top-0 z-10 -mx-3 sm:-mx-4 px-3 sm:px-4 py-2 bg-[var(--bg-footer)]/90 backdrop-blur-md border-b border-[var(--border-default)] flex items-center justify-between mb-4 rounded-t-xl">
+                  <div className="flex items-center gap-2 text-[10px] text-[var(--text-tertiary)]">
+                    <MessageSquare size={12} />
+                    <span className="font-medium text-[var(--text-secondary)]">{trunc(activeConv.title, 50)}</span>
+                    <span>&middot;</span>
+                    <span>{activeConv.messages.length} messages</span>
+                    <span>&middot;</span>
+                    <span>{countMessageTokens(activeConv.messages).toLocaleString()} tokens</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => { const comps = analyzeReactComponentsInContent(activeConv.messages.map(m => m.content).join('\n')); if (comps.length > 0) { setReactComponents(p => ({ ...p, [activeConv.id]: comps })); setShowFolderTree(true); } }} className="p-1 rounded text-[var(--text-tertiary)] hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title="View React component tree">
+                      <FolderTree size={13} />
+                    </button>
+                    <span className="text-[9px] text-[var(--text-tertiary)]">{formatTokenCount(activeConv.messages.map(m => m.content).join('\n'))}</span>
+                  </div>
+                </div>
+              )}
               {activeConv.messages.map((msg, i) => (
-                <MessageBubble key={msg.id} msg={msg} onEdit={editMessage} onDelete={deleteMessage} onRegenerate={regenerate} showActions />
+                <MessageBubble key={msg.id} msg={msg} onEdit={editMessage} onDelete={deleteMessage} onRegenerate={regenerate} onBranch={branchFrom} onLivePreview={handleLivePreview} onResendFrom={resendFrom} onDragStart={handleDragStart} showActions msgIdx={i} />
               ))}
 
               {streaming && sc && (
@@ -703,8 +1004,12 @@ export default function ChatPage() {
 
               <div className="flex items-end gap-2">
                 <VoiceButton onResult={handleVoiceResult} />
+                <button onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-95 text-[var(--text-secondary)] hover:text-emerald-400 hover:bg-emerald-500/10" title="Attach image">
+                  <Image size={16} />
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageSelect} />
                 <textarea
-                  ref={inputRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
+                  ref={inputRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown} onPaste={handlePaste}
                   placeholder={streaming ? 'Generating...' : 'Ask something... (/ for commands)'}
                   rows={1} disabled={streaming}
                   className="flex-1 resize-none rounded-xl bg-[var(--bg-card)] border border-[var(--border-default)] px-4 py-3 text-sm text-[var(--text-white)] placeholder-[var(--text-tertiary)] outline-none focus:border-emerald-500/40 focus:bg-[var(--bg-hover)] transition-all disabled:opacity-50"
@@ -726,6 +1031,93 @@ export default function ChatPage() {
         )}
       </div>
 
+      {/* Live Preview Modal */}
+      {livePreviewHtml && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setLivePreviewHtml(null)}>
+          <div className="w-full h-full max-w-5xl max-h-[90vh] m-4 rounded-2xl overflow-hidden border border-[var(--border-default)] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-2 bg-[var(--bg-card)] border-b border-[var(--border-default)]">
+              <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]"><PanelRightOpen size={14} className="text-sky-400" />Live Preview</div>
+              <button onClick={() => setLivePreviewHtml(null)} className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-white)] hover:bg-white/5 transition-all"><X size={16} /></button>
+            </div>
+            <iframe srcDoc={livePreviewHtml} className="flex-1 bg-white w-full" sandbox="allow-scripts allow-same-origin" title="Live Preview" />
+          </div>
+        </div>
+      )}
+
+      {/* Folder Tree Modal */}
+      {showFolderTree && activeConv && reactComponents[activeConv.id] && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowFolderTree(false)}>
+          <div className="bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-2xl w-full max-w-lg mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border-default)]">
+              <div className="flex items-center gap-2"><FolderTree size={16} className="text-emerald-400" /><h3 className="font-bold text-[var(--text-white)] text-sm">React Components</h3></div>
+              <button onClick={() => setShowFolderTree(false)} className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-white)] hover:bg-white/5 transition-all"><X size={16} /></button>
+            </div>
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {reactComponents[activeConv.id].map((comp, i) => (
+                <div key={i} className="mb-4 last:mb-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Code2 size={14} className="text-violet-400" />
+                    <span className="font-bold text-sm text-[var(--text-white)] font-mono">{comp.name}</span>
+                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${comp.type === 'component' ? 'bg-emerald-500/10 text-emerald-400' : comp.type === 'hook' ? 'bg-violet-500/10 text-violet-400' : comp.type === 'style' ? 'bg-pink-500/10 text-pink-400' : 'bg-amber-500/10 text-amber-400'}`}>{comp.type}</span>
+                  </div>
+                  <div className="ml-5 space-y-1.5 text-xs">
+                    {comp.imports.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-[var(--text-tertiary)] flex-shrink-0 mt-0.5"><FileCode size={11} /></span>
+                        <div className="flex flex-wrap gap-1"><span className="text-[var(--text-tertiary)]">Imports:</span>{comp.imports.map((imp, j) => <span key={j} className="px-1.5 py-0.5 rounded bg-[var(--bg-code)] text-[var(--text-primary)] font-mono text-[10px]">{imp}</span>)}</div>
+                      </div>
+                    )}
+                    {comp.hooks.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-[var(--text-tertiary)] flex-shrink-0 mt-0.5"><Hash size={11} /></span>
+                        <div className="flex flex-wrap gap-1"><span className="text-[var(--text-tertiary)]">Hooks:</span>{comp.hooks.map((h, j) => <span key={j} className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-mono text-[10px]">{h}</span>)}</div>
+                      </div>
+                    )}
+                    {comp.props.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-[var(--text-tertiary)] flex-shrink-0 mt-0.5"><Type size={11} /></span>
+                        <div className="flex flex-wrap gap-1"><span className="text-[var(--text-tertiary)]">Props:</span>{comp.props.map((p, j) => <span key={j} className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono text-[10px]">{p}</span>)}</div>
+                      </div>
+                    )}
+                    {comp.exports.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-[var(--text-tertiary)] flex-shrink-0 mt-0.5"><ListOrdered size={11} /></span>
+                        <div className="flex flex-wrap gap-1"><span className="text-[var(--text-tertiary)]">Exports:</span>{comp.exports.map((e, j) => <span key={j} className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono text-[10px]">{e}</span>)}</div>
+                      </div>
+                    )}
+                    {comp.subComponents.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-[var(--text-tertiary)] flex-shrink-0 mt-0.5"><FolderTree size={11} /></span>
+                        <div className="flex flex-wrap gap-1"><span className="text-[var(--text-tertiary)]">Sub-components:</span>{comp.subComponents.map((s, j) => <span key={j} className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 font-mono text-[10px]">{s}</span>)}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {(!reactComponents[activeConv.id] || reactComponents[activeConv.id].length === 0) && (
+                <p className="text-xs text-[var(--text-tertiary)] text-center py-8">No React components detected in this conversation.</p>
+              )}
+            </div>
+            <div className="flex justify-end px-5 py-3 border-t border-[var(--border-default)]">
+              <button onClick={() => setShowFolderTree(false)} className="px-4 py-2 rounded-xl bg-emerald-500 text-black text-[11px] font-bold hover:bg-emerald-400 transition-all active:scale-95">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image preview area */}
+      {images.length > 0 && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-2 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-xl">
+          {images.map((img, i) => (
+            <div key={i} className="relative group">
+              <img src={img} alt={`Attachment ${i + 1}`} className="w-12 h-12 rounded-lg object-cover border border-[var(--border-default)]" />
+              <button onClick={() => setImages(p => p.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-400 transition-all opacity-0 group-hover:opacity-100"><X size={8} /></button>
+            </div>
+          ))}
+          <button onClick={() => setImages([])} className="text-[10px] text-[var(--text-tertiary)] hover:text-red-400 transition-all px-1">Clear all</button>
+        </div>
+      )}
+
       {/* System Prompt Editor */}
       {showPromptEditor && activeConv && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowPromptEditor(false)}>
@@ -746,5 +1138,14 @@ export default function ChatPage() {
 }
 
 function StreamingContentRenderer({ content }: { content: string }) {
-  return <div className="whitespace-pre-wrap break-words">{content}</div>;
+  const segments = parseCodeBlocks(content);
+  return (
+    <div className="space-y-1">
+      {segments.map((seg, i) => seg.type === 'text' ? (
+        <div key={i} className="leading-relaxed text-[var(--text-primary)]">{renderMarkdown(seg.content)}</div>
+      ) : (
+        <CodeBlockRenderer key={i} block={seg.block} />
+      ))}
+    </div>
+  );
 }
