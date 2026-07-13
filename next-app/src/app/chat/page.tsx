@@ -97,7 +97,9 @@ function parseCodeBlocks(content: string) {
 }
 
 /* ─── Markdown Renderer ─── */
+let mdCounter = 0;
 function renderMarkdown(text: string): React.ReactNode[] {
+  const uid = ++mdCounter;
   const lines = text.split('\n');
   const nodes: React.ReactNode[] = [];
   let inList: 'ul' | 'ol' | null = null;
@@ -134,7 +136,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
   lines.forEach((line, i) => {
     const trimmed = line.trim();
-    const key = `md-${i}`;
+    const key = `md-${uid}-${i}`;
 
     if (!trimmed) { flushList(key); nodes.push(<br key={key} />); return; }
 
@@ -159,7 +161,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     nodes.push(<div key={key} className="text-sm leading-relaxed text-[var(--text-primary)]">{inlineMd(line, key)}</div>);
   });
 
-  flushList('final-list');
+  flushList(`final-list-${uid}`);
   return nodes;
 }
 
@@ -850,7 +852,7 @@ export default function ChatPage() {
                       {lastMsg && <><span>&middot;</span><span className="truncate">{lastMsg.content.slice(0, 25)}...</span></>}
                     </div>
                   </div>
-                  <button onClick={e => deleteChat(e, conv.id)} className="p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-400 transition-all flex-shrink-0"><Trash2 size={12} /></button>
+                  <span onClick={e => deleteChat(e, conv.id)} className="p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-400 transition-all flex-shrink-0 cursor-pointer"><Trash2 size={12} /></span>
                 </button>
               );
             })}

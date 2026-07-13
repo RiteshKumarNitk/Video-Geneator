@@ -23,7 +23,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col selection:bg-emerald-500 selection:text-black">
+      <body className="min-h-full flex flex-col selection:bg-emerald-500 selection:text-black" suppressHydrationWarning>
         <div className="bg-mesh-glow" />
         <Header />
         <main className="flex-1 flex flex-col">
