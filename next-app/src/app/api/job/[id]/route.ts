@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import { getJob, deleteJobRecord } from '@/lib/jobsStore';
+import { cancelVideoJob } from '@/lib/queue';
 
 export async function GET(
   req: Request,
@@ -31,6 +32,11 @@ export async function DELETE(
 
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    const canceled = await cancelVideoJob(id);
+    if (!canceled && (job.status === 'PROCESSING' || job.status === 'PENDING')) {
+      return NextResponse.json({ error: 'The job is already being processed and cannot be canceled safely.' }, { status: 409 });
     }
 
     // Attempt to delete physical files

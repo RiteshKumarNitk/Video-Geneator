@@ -2,6 +2,14 @@ import Link from 'next/link';
 
 const features = [
   {
+    title: 'AI Clip Studio',
+    desc: 'Transcribe long videos, discover high-signal moments, and export them as vertical clips.',
+    href: '/clips',
+    accent: 'text-emerald-400',
+    tag: 'New · MVP',
+    icon: (<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 2v20m6-20v20M3 7h18M3 17h18" /></svg>),
+  },
+  {
     title: 'AI Background Matting',
     desc: 'State-of-the-art Robust Video Matting (RVM) with temporal consistency. No flicker, no artifacts.',
     href: '/dashboard',
@@ -161,7 +169,7 @@ export default function LandingPage() {
           <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">AI Pipeline Suite</span>
           <h2 className="text-3xl sm:text-4xl font-black text-[var(--text-white)] mt-2 tracking-tight">Everything you need</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-2 max-w-xl mx-auto">
-            Six integrated tools powered by local PyTorch models. No cloud dependencies, no usage limits.
+            Seven integrated tools powered by local models. No cloud dependencies, no usage limits.
           </p>
         </div>
 

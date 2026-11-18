@@ -1,6 +1,13 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: videobg_redis
+    restart: always
+    networks:
+      - videobg_network
+
   python-ai:
     build:
       context: ./python-ai
@@ -24,6 +31,8 @@ services:
     restart: always
     environment:
       - PYTHON_AI_URL=http://python-ai:8000
+      - REDIS_URL=redis://redis:6379
+      - NEXTJS_INTERNAL_URL=http://nextjs:3000
       - NODE_ENV=production
       - PORT=3000
       - SHARED_STORAGE_PATH=/app/shared-storage
@@ -33,6 +42,7 @@ services:
       - "3000:3000"
     depends_on:
       - python-ai
+      - redis
     networks:
       - videobg_network
 
