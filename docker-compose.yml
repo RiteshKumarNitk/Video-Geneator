@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   redis:
     image: redis:7-alpine
@@ -16,8 +14,11 @@ services:
     restart: always
     environment:
       - PORT=8000
+      - YOUTUBE_COOKIES_FILE=/app/cookies/youtube.txt
+      - YOUTUBE_AI_CLIPS=true
     volumes:
       - shared_storage:/app/shared-storage
+      - ./python-ai/cookies:/app/cookies:ro
     ports:
       - "8000:8000"
     networks:

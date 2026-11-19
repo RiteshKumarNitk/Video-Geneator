@@ -75,6 +75,18 @@ Run the following command in the project root:
 docker-compose up --build
 ```
 
+### Build a Windows launcher
+
+The project includes a self-contained Windows launcher that starts Docker Desktop, waits for the Docker engine, and runs the full application stack. Docker Desktop is still required because the AI service depends on Python, PyTorch, FFmpeg, Redis, and model assets.
+
+From PowerShell:
+
+```powershell
+.\windows\Build-Windows.ps1
+```
+
+The distributable package is created in `dist\ChromaAI`. Copy that folder to another Windows machine with Docker Desktop installed and run `ChromaAI.exe`.
+
 This will automatically build and start the entire stack:
 *   **Nginx Proxy** on `http://localhost`
 *   **Next.js Web Interface** on `http://localhost` (proxied)

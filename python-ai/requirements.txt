@@ -1,17 +1,19 @@
-fastapi>=0.110.0
-uvicorn[standard]>=0.28.0
-torch>=2.2.0
-torchvision>=0.17.0
-opencv-python-headless>=4.9.0.80
-numpy>=1.24.0
-requests>=2.31.0
-python-multipart>=0.0.9
-gunicorn>=21.2.0
-yt-dlp>=2024.3.10
-gtts>=2.5.0
-transformers>=4.44.0
-accelerate>=0.30.0
-pillow>=10.0.0
-sentencepiece>=0.1.99
-faster-whisper>=1.0.0
-PyMuPDF>=1.23.0
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+# CPU-only wheels keep the default Windows/Docker build free of CUDA runtimes.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+torchvision==0.17.2+cpu
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+requests==2.32.3
+python-multipart==0.0.20
+gunicorn==23.0.0
+yt-dlp==2026.08.19
+gtts==2.5.4
+transformers==4.47.1
+accelerate==1.2.1
+pillow==10.4.0
+sentencepiece==0.2.0
+faster-whisper==1.1.1
+PyMuPDF==1.25.1

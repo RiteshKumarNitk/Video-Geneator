@@ -5,9 +5,12 @@ import { addVideoJob } from '@/lib/queue';
 
 export async function POST(req: Request) {
   try {
-    const { youtubeUrl, clipDuration = 30, videoQuality = '1080p', orientation = 'horizontal' } = await req.json();
+    const { youtubeUrl, sourceType = 'video', clipDuration = 30, videoQuality = '1080p', orientation = 'horizontal' } = await req.json();
     if (!youtubeUrl || youtubeUrl.trim() === '') {
       return NextResponse.json({ error: 'Missing youtubeUrl parameter' }, { status: 400 });
+    }
+    if (sourceType !== 'video' && sourceType !== 'livestream') {
+      return NextResponse.json({ error: 'Invalid YouTube source type.' }, { status: 400 });
     }
 
     const durationInt = parseInt(clipDuration, 10);
@@ -28,6 +31,7 @@ export async function POST(req: Request) {
       status: 'PENDING',
       type: 'SHORTS_SPLIT',
       youtubeUrl: youtubeUrl,
+      sourceType,
       originalVideo: null,
       processedClips: [],
       videoQuality: videoQuality,
@@ -44,7 +48,13 @@ export async function POST(req: Request) {
       youtubeUrl, 
       durationInt,
       videoQuality,
-      orientation
+      orientation,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      sourceType
     );
 
     console.log(`[API] YouTube Split Job ${jobId} enqueued.`);

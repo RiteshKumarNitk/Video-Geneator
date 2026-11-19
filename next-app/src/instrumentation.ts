@@ -1,4 +1,4 @@
 export async function register() {
-  // No-op: in-process queue runs on-demand in queue.ts
-  console.log('[-] Next.js Server Booted with Local In-Process Queue.');
+  // The BullMQ worker is initialized by queue.ts and uses the Redis service.
+  console.log('[Queue] Next.js server booted with Redis-backed BullMQ queue.');
 }

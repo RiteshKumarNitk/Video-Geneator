@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     
     // Check if it's multipart form upload
     if (contentType.includes('multipart/form-data')) {
-      return new Promise((resolve) => {
+      return new Promise<NextResponse>((resolve) => {
         const headers = { 'content-type': contentType };
         const busboy = Busboy({ headers });
         let fileSaved = false;
@@ -92,9 +92,9 @@ export async function POST(req: Request) {
       const writeStream = createWriteStream(filePath);
       const nodeStream = Readable.fromWeb(req.body as any);
       
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         nodeStream.pipe(writeStream);
-        writeStream.on('finish', resolve);
+        writeStream.on('finish', () => resolve());
         writeStream.on('error', reject);
       });
 

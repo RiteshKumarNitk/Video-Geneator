@@ -8,9 +8,10 @@ import json
 import re
 import subprocess
 import cv2
+from threading import Event, Lock
 
 from app.matting import process_video_matting
-from app.youtube_splitter import split_video_into_shorts, download_playlist_videos
+from app.youtube_splitter import split_video_into_shorts, download_playlist_videos, JobCanceled
 from app.ffmpeg_utils import has_audio, extract_audio_high_quality as extract_audio, merge_audio_video
 from app.tts import text_to_speech, SUPPORTED_LANGUAGES
 
@@ -22,6 +23,19 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
+
+_youtube_cancel_events: dict[str, Event] = {}
+_youtube_cancel_lock = Lock()
+
+
+def _youtube_cancel_event(job_id: str) -> Event:
+    with _youtube_cancel_lock:
+        return _youtube_cancel_events.setdefault(job_id, Event())
+
+
+def _clear_youtube_cancel_event(job_id: str) -> None:
+    with _youtube_cancel_lock:
+        _youtube_cancel_events.pop(job_id, None)
 
 app = FastAPI(title="AI Video Engine Service")
 
@@ -35,6 +49,7 @@ class ProcessVideoRequest(BaseModel):
 class YoutubeSplitRequest(BaseModel):
     jobId: str
     youtubeUrl: str
+    sourceType: str = "video"
     clipDuration: int = 30
     videoQuality: str = "1080p"
     orientation: str = "horizontal"
@@ -160,6 +175,7 @@ def run_youtube_split_pipeline(request: YoutubeSplitRequest):
     output_dir = request.outputDir
     callback_url = request.progressCallbackUrl
 
+    cancel_event = _youtube_cancel_event(job_id)
     try:
         logger.info(f"Starting YouTube split pipeline for job: {job_id}")
         clips = split_video_into_shorts(
@@ -169,7 +185,9 @@ def run_youtube_split_pipeline(request: YoutubeSplitRequest):
             clip_duration=clip_duration,
             progress_callback_url=callback_url,
             video_quality=video_quality,
-            orientation=orientation
+            orientation=orientation,
+            source_type=request.sourceType,
+            cancel_check=cancel_event.is_set
         )
         
         logger.info(f"Job {job_id}: YouTube split complete. Generated clips: {clips}")
@@ -185,6 +203,8 @@ def run_youtube_split_pipeline(request: YoutubeSplitRequest):
             },
             timeout=5
         )
+    except JobCanceled:
+        logger.info(f"Job {job_id}: YouTube split canceled by user.")
     except Exception as e:
         logger.error(f"Job {job_id} YouTube split failed: {str(e)}", exc_info=True)
         try:
@@ -195,6 +215,8 @@ def run_youtube_split_pipeline(request: YoutubeSplitRequest):
             )
         except Exception as webhook_err:
             logger.error(f"Failed to send failure webhook for split job {job_id}: {str(webhook_err)}")
+    finally:
+        _clear_youtube_cancel_event(job_id)
 
 def run_playlist_pipeline(request: YoutubePlaylistRequest):
     job_id = request.jobId
@@ -334,6 +356,12 @@ def process_video(request: ProcessVideoRequest, background_tasks: BackgroundTask
 def youtube_split(request: YoutubeSplitRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(run_youtube_split_pipeline, request)
     return {"status": "processing", "jobId": request.jobId}
+
+@app.post("/youtube-split/{job_id}/cancel")
+def cancel_youtube_split(job_id: str):
+    _youtube_cancel_event(job_id).set()
+    logger.info(f"Job {job_id}: cancellation requested.")
+    return {"status": "cancel_requested", "jobId": job_id}
 
 @app.post("/youtube-playlist")
 def youtube_playlist(request: YoutubePlaylistRequest, background_tasks: BackgroundTasks):

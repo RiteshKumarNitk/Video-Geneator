@@ -25,6 +25,7 @@ interface Job {
   videoQuality?: string;
   orientation?: string;
   clipDuration?: number;
+  sourceType?: 'video' | 'livestream';
   createdAt: string;
 }
 
@@ -34,6 +35,7 @@ export default function YoutubeShortsCreator() {
   const [activeJob, setActiveJob] = useState<Job | null>(null);
 
   const [youtubeUrlText, setYoutubeUrlText] = useState<string>('');
+  const [sourceType, setSourceType] = useState<'video' | 'livestream'>('video');
   const [clipDuration, setClipDuration] = useState<number>(30);
   const [videoQuality, setVideoQuality] = useState<string>('best');
   const [orientation, setOrientation] = useState<string>('horizontal');
@@ -42,8 +44,8 @@ export default function YoutubeShortsCreator() {
   const [activeClipName, setActiveClipName] = useState<string | null>(null);
 
   const exampleVideos = [
-    { name: "Cinematic Nature Video", url: "https://www.youtube.com/watch?v=Bey4XXJAqS8" },
-    { name: "Lo-Fi Instrumental Beats", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk" }
+    { name: "Cinematic Nature Video", url: "https://www.youtube.com/watch?v=Bey4XXJAqS8", sourceType: 'video' as const },
+    { name: "Lo-Fi Instrumental Livestream", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk", sourceType: 'livestream' as const }
   ];
 
   useEffect(() => {
@@ -115,6 +117,7 @@ export default function YoutubeShortsCreator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           youtubeUrl: youtubeUrlText,
+          sourceType,
           clipDuration,
           videoQuality,
           orientation
@@ -164,6 +167,7 @@ export default function YoutubeShortsCreator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           youtubeUrl: job.youtubeUrl,
+          sourceType: job.sourceType || 'video',
           clipDuration: job.clipDuration || 30,
           videoQuality: job.videoQuality || '1080p',
           orientation: job.orientation || 'horizontal'
@@ -197,27 +201,42 @@ export default function YoutubeShortsCreator() {
             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl" />
 
             <div>
-              <span className="text-[10px] text-purple-400 font-extrabold uppercase tracking-widest">Slicing Engine</span>
+              <span className="text-[10px] text-purple-400 font-extrabold uppercase tracking-widest">AI Highlight Engine</span>
               <h2 className="text-xl sm:text-2xl font-black text-[var(--text-white)] tracking-tight mt-1">YouTube Shorts Creator</h2>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-                Download a YouTube video, choose custom quality streams, and automatically slice it into multiple short segments.
+                Choose a completed YouTube video or a livestream, transcribe it locally, and create meaningful short clips.
               </p>
             </div>
 
             <form onSubmit={handleYoutubeSplit} className="flex flex-col gap-5">
 
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-base)] p-1">
+                <button type="button" onClick={() => setSourceType('video')} disabled={splitting} className={`rounded-xl px-4 py-3 text-xs font-bold transition ${sourceType === 'video' ? 'bg-purple-500 text-black' : 'text-[var(--text-secondary)] hover:text-[var(--text-white)]'}`}>
+                  YouTube Video
+                </button>
+                <button type="button" onClick={() => setSourceType('livestream')} disabled={splitting} className={`rounded-xl px-4 py-3 text-xs font-bold transition ${sourceType === 'livestream' ? 'bg-red-500 text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-white)]'}`}>
+                  Livestream
+                </button>
+              </div>
+
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">YouTube Video URL</label>
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">{sourceType === 'livestream' ? 'Livestream URL' : 'YouTube Video URL'}</label>
                 <input
                   type="url"
                   value={youtubeUrlText}
                   onChange={(e) => setYoutubeUrlText(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
+                  placeholder={sourceType === 'livestream' ? 'https://www.youtube.com/watch?v=live...' : 'https://www.youtube.com/watch?v=...'}
                   className="input"
                   disabled={splitting}
                   required
                 />
               </div>
+
+              {sourceType === 'livestream' && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+                  Livestream mode uses yt-dlp live handling. The job finishes after the stream ends; a stream with no replay must be currently live to provide downloadable media.
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex flex-col gap-2">
@@ -270,7 +289,7 @@ export default function YoutubeShortsCreator() {
                     <button
                       key={idx}
                       type="button"
-                      onClick={() => setYoutubeUrlText(video.url)}
+                      onClick={() => { setYoutubeUrlText(video.url); if (video.sourceType) setSourceType(video.sourceType); }}
                       className="text-left text-xs text-[var(--text-secondary)] hover:text-[var(--text-white)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated)] border border-[var(--border-default)] hover:border-[var(--border-default)] px-3.5 py-2.5 rounded-xl transition-all duration-200 truncate cursor-pointer flex-1 active:scale-[0.98]"
                     >
                       <span className="text-purple-400 font-bold block text-[10px] mb-0.5">{video.name}</span>
@@ -297,7 +316,7 @@ export default function YoutubeShortsCreator() {
                 ) : (
                   <>
                     <Download className="w-4.5 h-4.5" />
-                    Download & Split Shorts
+                    {sourceType === 'livestream' ? 'Record & Create AI Clips' : 'Analyze & Create AI Clips'}
                   </>
                 )}
               </button>
@@ -313,9 +332,9 @@ export default function YoutubeShortsCreator() {
             </div>
 
             <div className="flex flex-col gap-2.5 max-w-md w-full">
-              <h3 className="text-xl font-extrabold text-[var(--text-white)] tracking-tight">YouTube Shorts Slicing Active</h3>
+              <h3 className="text-xl font-extrabold text-[var(--text-white)] tracking-tight">Finding AI Highlights</h3>
               <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed px-4">
-                Pulling high-quality video frames from YouTube, checking resolution metrics, and slicing them into clean short segments.
+                Transcribing the video, ranking meaningful moments, and rendering clips that start and end around speech—not arbitrary timestamps.
               </p>
               {activeJob.youtubeUrl && (
                 <div className="mt-2 text-xs font-mono bg-[var(--bg-base)] p-3 rounded-xl border border-[var(--border-default)] text-[var(--text-secondary)] text-left max-w-sm mx-auto w-full truncate">
@@ -336,7 +355,7 @@ export default function YoutubeShortsCreator() {
               <span className="text-[10px] text-[var(--text-secondary)] mt-0.5 tracking-wide">
                 {activeJob.status === 'PENDING'
                   ? 'Waiting in local queue...'
-                  : activeJob.progress < 50 ? 'Downloading video streams...' : 'Splitting into short clips...'}
+                  : activeJob.progress < 50 ? 'Downloading video streams...' : 'Finding and rendering AI highlights...'}
               </span>
             </div>
 
@@ -356,7 +375,7 @@ export default function YoutubeShortsCreator() {
             </div>
 
             <div className="flex flex-col gap-3.5 max-w-md w-full">
-              <h3 className="text-lg font-bold text-[var(--text-white)] tracking-tight">Slicing Task Failed</h3>
+              <h3 className="text-lg font-bold text-[var(--text-white)] tracking-tight">AI Highlight Task Failed</h3>
               <p className="text-xs text-red-400/90 leading-relaxed font-mono bg-red-500/5 border border-red-500/15 p-4 rounded-2xl max-h-[140px] overflow-y-auto text-left">
                 {activeJob.error || 'Check that the YouTube link is public and accessible.'}
               </p>

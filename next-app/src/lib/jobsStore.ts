@@ -11,12 +11,14 @@ export interface Job {
   duration: number | null;
   error: string | null;
   backgroundType?: string;
+  prompt?: string;
   type?: 'MATTING' | 'SHORTS_SPLIT' | 'PLAYLIST_DOWNLOAD' | 'TEXT_TO_SPEECH' | 'GENERATION' | 'CLIP_ANALYSIS';
   transcript?: { start: number; end: number; text: string }[];
   words?: { start: number; end: number; word: string }[];
   suggestions?: { id: string; start: number; end: number; title: string; reason: string; score: number; text: string }[];
   renderedClips?: { id: string; path: string; title: string }[];
   youtubeUrl?: string | null;
+  sourceType?: 'video' | 'livestream';
   processedClips?: string[];
   videoQuality?: string;
   orientation?: string;
