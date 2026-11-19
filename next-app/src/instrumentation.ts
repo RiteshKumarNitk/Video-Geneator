@@ -1,4 +1,6 @@
 export async function register() {
-  // The BullMQ worker is initialized by queue.ts and uses the Redis service.
-  console.log('[Queue] Next.js server booted with Redis-backed BullMQ queue.');
+  if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.NEXT_PHASE !== 'phase-production-build') {
+    const { startClipsWorker } = await import('./lib/clips/worker');
+    startClipsWorker();
+  }
 }

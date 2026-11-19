@@ -1,3 +1,4 @@
+import {callbackToken} from './auth';
 import { EventEmitter } from 'events';
 import { Job as BullJob, Queue, Worker } from 'bullmq';
 import { getJob, updateJob } from './jobsStore';
@@ -40,7 +41,7 @@ async function waitForCallback(jobId: string): Promise<void> {
 
 async function callPython(item: QueueItem): Promise<Response> {
   const { jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, sourceType, clipDuration, videoQuality, orientation, playlistUrl, maxVideos, ttsText, ttsLanguage, ttsSlow } = item;
-  const common = { jobId, progressCallbackUrl: `${callbackBase}/api/job/update-progress` };
+  const common = { jobId, progressCallbackUrl: `${process.env.NEXTJS_INTERNAL_URL || 'http://localhost:3000'}/api/job/update-progress?token=${await callbackToken(jobId)}` };
   let endpoint: string;
   let body: Record<string, unknown>;
   if (type === 'SHORTS_SPLIT') { endpoint = '/youtube-split'; body = { ...common, youtubeUrl, sourceType, clipDuration, videoQuality, orientation, outputDir: getStoragePath(`processed/${jobId}`) }; }

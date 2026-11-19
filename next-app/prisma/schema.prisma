@@ -1,6 +1,5 @@
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -17,11 +16,151 @@ enum JobStatus {
 model Job {
   id             String    @id @default(uuid())
   status         JobStatus @default(PENDING)
-  originalVideo  String    // path to original file in shared storage
-  processedVideo String?   // path to processed file in shared storage
+  originalVideo  String // path to original file in shared storage
+  processedVideo String? // path to processed file in shared storage
   progress       Float     @default(0.0)
-  duration       Float?    // in seconds
-  error          String?   // error details if FAILED
+  duration       Float? // in seconds
+  error          String? // error details if FAILED
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// The Clips migration also runs on first initialization of the Compose database.
+model ClipSource {
+  id          String    @id @db.Uuid
+  filename    String
+  path        String    @unique
+  owner       String?
+  user        AuthUser? @relation(fields: [owner], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  url         String?
+  status      String
+  error       String?
+  metadata    Json?
+  cues        Json      @default("[]")
+  analysis    String?
+  suggestions Json      @default("[]")
+  attempt     String    @db.Uuid
+  updated     DateTime  @default(now()) @db.Timestamptz
+  created     DateTime  @default(now()) @db.Timestamptz
+  clips       Clip[]
+
+  @@unique([owner, url], map: "clip_source_owner_url")
+  @@index([owner], map: "clip_source_owner")
+  @@map("clip_source")
+}
+
+model Clip {
+  id       String       @id @db.Uuid
+  source   String       @db.Uuid
+  original ClipSource   @relation(fields: [source], references: [id])
+  title    String
+  settings Json
+  created  DateTime     @default(now()) @db.Timestamptz
+  exports  ClipExport[]
+
+  @@index([source], map: "clip_source_idx")
+  @@map("clip")
+}
+
+model ClipExport {
+  id       String   @id @db.Uuid
+  clip     String   @db.Uuid
+  editor   Clip     @relation(fields: [clip], references: [id])
+  snapshot Json
+  status   String
+  error    String?
+  attempt  String   @db.Uuid
+  created  DateTime @default(now()) @db.Timestamptz
+
+  @@index([clip], map: "clip_export_idx")
+  @@map("clip_export")
+}
+
+model ClipPreset {
+  name   String @id
+  layout Json
+  style  Json
+
+  @@map("clip_preset")
+}
+
+model ClipUserPreset {
+  user   AuthUser @relation(fields: [owner], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  owner  String
+  name   String
+  layout Json
+  style  Json
+
+  @@id([owner, name])
+  @@map("clip_user_preset")
+}
+
+model AuthUser {
+  id            String           @id
+  name          String
+  email         String           @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime         @default(now()) @db.Timestamptz
+  updatedAt     DateTime         @default(now()) @db.Timestamptz
+  sessions      AuthSession[]
+  accounts      AuthAccount[]
+  sources       ClipSource[]
+  presets       ClipUserPreset[]
+
+  @@map("user")
+}
+
+model AuthSession {
+  id        String   @id
+  userId    String
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  token     String   @unique
+  expiresAt DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @db.Timestamptz
+  ipAddress String?
+  userAgent String?
+
+  @@index([userId])
+  @@map("session")
+}
+
+model AuthAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz
+  refreshTokenExpiresAt DateTime? @db.Timestamptz
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @db.Timestamptz
+  updatedAt             DateTime  @db.Timestamptz
+
+  @@index([userId])
+  @@map("account")
+}
+
+model AuthVerification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @default(now()) @db.Timestamptz
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model WorkspaceSecret {
+  purpose String @id
+  value   String
+
+  @@map("workspace_secret")
 }

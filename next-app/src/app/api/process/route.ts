@@ -1,5 +1,6 @@
+import {visibleJob} from '@/lib/auth';
 import { NextResponse } from 'next/server';
-import { getJob, updateJob } from '@/lib/jobsStore';
+import { updateJob } from '@/lib/jobsStore';
 import { addVideoJob } from '@/lib/queue';
 
 export async function POST(req: Request) {
@@ -9,7 +10,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing jobId parameter' }, { status: 400 });
     }
 
-    const job = await getJob(jobId);
+    const job = await visibleJob(jobId);
 
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });

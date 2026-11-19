@@ -1,11 +1,15 @@
+import {owner} from '@/lib/auth';
+import {getStoragePath} from '@/lib/storage';
+import {InputError,failure} from '@/lib/clips/db';
 import { NextResponse } from 'next/server';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const PROJECT_ROOT = path.resolve(process.cwd());
+
 
 export async function POST(req: Request) {
   try {
+    const PROJECT_ROOT=getStoragePath('user-files/'+await owner());
     const { filePath: relativePath, content, overwrite } = await req.json();
 
     if (!relativePath || typeof content !== 'string') {
@@ -16,7 +20,7 @@ export async function POST(req: Request) {
     const normalized = path.normalize(relativePath).replace(/^[\\/]+/, '');
     const fullPath = path.resolve(PROJECT_ROOT, normalized);
 
-    if (!fullPath.startsWith(PROJECT_ROOT)) {
+    if (!fullPath.startsWith(PROJECT_ROOT+path.sep)) {
       return NextResponse.json({ error: 'Path outside project directory' }, { status: 403 });
     }
 
@@ -43,6 +47,7 @@ export async function POST(req: Request) {
       action: fs.existsSync(fullPath) && !overwrite ? 'created' : 'written',
     });
   } catch (err: any) {
+    if(err instanceof InputError)return failure(err);
     return NextResponse.json({ error: err.message || 'Write failed' }, { status: 500 });
   }
 }

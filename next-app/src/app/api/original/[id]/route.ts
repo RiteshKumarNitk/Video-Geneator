@@ -1,7 +1,8 @@
+import {visibleJob} from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { existsSync, statSync, createReadStream } from 'fs';
 import { Readable } from 'stream';
-import { getJob } from '@/lib/jobsStore';
+
 
 export async function GET(
   req: Request,
@@ -10,7 +11,7 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const job = await getJob(id);
+    const job = await visibleJob(id);
 
     if (!job || !job.originalVideo) {
       return NextResponse.json({ error: 'Job or original video not found' }, { status: 404 });

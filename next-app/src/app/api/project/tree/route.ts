@@ -1,8 +1,11 @@
+import {owner} from '@/lib/auth';
+import {getStoragePath} from '@/lib/storage';
+import {InputError,failure} from '@/lib/clips/db';
 import { NextResponse } from 'next/server';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const PROJECT_ROOT = path.resolve(process.cwd());
+
 const IGNORE = new Set([
   'node_modules', '.next', 'out', 'dist', 'build',
   '.git', '.vscode', '.idea', '__pycache__', '.cache',
@@ -44,12 +47,14 @@ function buildTree(dir: string, prefix = ''): string {
 
 export async function GET() {
   try {
+    const PROJECT_ROOT=getStoragePath('user-files/'+await owner());
     const tree = buildTree(PROJECT_ROOT);
     return NextResponse.json({
       root: path.basename(PROJECT_ROOT),
       tree,
     });
   } catch (err: any) {
+    if(err instanceof InputError)return failure(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -64,7 +64,7 @@ def get_video_duration(video_path: str) -> float:
         logger.error(f"Failed to get duration for {video_path}: {e}")
         return 0.0
 
-def download_youtube_video(youtube_url: str, output_path: str, video_quality: str = "1080p", progress_callback=None, cancel_check=None, source_type: str = "video") -> bool:
+def download_youtube_video(youtube_url: str, output_path: str, video_quality: str = "1080p", progress_callback=None, cancel_check=None, source_type: str = "video", clip_source: bool = False) -> bool:
     """Download YouTube video using yt-dlp with specified format quality limits."""
     def yt_dlp_hook(d):
         if cancel_check and cancel_check():
@@ -74,7 +74,11 @@ def download_youtube_video(youtube_url: str, output_path: str, video_quality: st
             downloaded = d.get('downloaded_bytes', 0)
             if total and progress_callback:
                 percentage = int((downloaded / total) * 100)
-                progress_callback(percentage)
+                if clip_source:
+                    track = "Audio" if d.get("info_dict", {}).get("vcodec") == "none" else "Video"
+                    progress_callback(percentage, track)
+                else:
+                    progress_callback(percentage)
         elif d['status'] == 'finished':
             logger.info("yt-dlp finished downloading.")
 
@@ -118,6 +122,23 @@ def download_youtube_video(youtube_url: str, output_path: str, video_quality: st
     if cookie_file and os.path.isfile(cookie_file):
         ydl_opts['cookiefile'] = cookie_file
         logger.info("Using configured YouTube cookies file.")
+
+    if clip_source:
+        # Download direct HTTPS streams inside the guarded Python process. The
+        # FFmpeg merger may only open local MP4 tracks, never remote manifests.
+        ydl_opts.update(format="bestvideo[height<=1080][ext=mp4][protocol=https][vcodec^=avc1]+bestaudio[ext=m4a][protocol=https]/best[ext=mp4][protocol=https]",
+                        noplaylist=True, noprogress=True, proxy="", fixup="never", hls_prefer_native=True,
+                        cachedir=False, js_runtimes={}, remote_components=set(), postprocessor_args={
+                            "merger+ffmpeg_i": ["-protocol_whitelist", "file,pipe", "-format_whitelist", "mov"]},
+                        match_filter=lambda info, *, incomplete=False: "Live video" if info.get("is_live") else None)
+        with YoutubeDL(ydl_opts) as ydl:
+            handlers = ydl._request_director.handlers
+            for key in list(handlers):
+                if key != "Urllib":
+                    del handlers[key]
+            if ydl.download([youtube_url]):
+                raise RuntimeError("YouTube source download failed")
+        return True
 
     try:
         if cancel_check and cancel_check():

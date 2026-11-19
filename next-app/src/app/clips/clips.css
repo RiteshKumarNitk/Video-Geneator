@@ -1,0 +1,313 @@
+.clips {
+  max-width: 1100px;
+  width: 100%;
+  margin: auto;
+}
+.clips header {
+  margin: 0 0 1.5rem;
+}
+.clips h1 {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+.clips h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.clips p,
+.clips small,
+.clips label {
+  color: var(--text-secondary);
+}
+.clips small,
+.clips label {
+  font-size: 0.85rem;
+}
+.clip-import,
+.clip-controls,
+.clip-preview {
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  min-width: 0;
+}
+.clip-row,
+.clip-picker,
+.clip-control-row,
+.clip-transport,
+.clip-export {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.clip-row > input.input {
+  flex: 1;
+  min-width: 12rem;
+}
+.clip-import form {
+  display: grid;
+  gap: 0.5rem;
+}
+.clips select {
+  background: var(--bg-card, Canvas);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  max-width: 100%;
+}
+.clips label:not(.clip-toggle, .clip-file) {
+  display: grid;
+  gap: 0.25rem;
+}
+.clip-source {
+  border-top: 1px solid var(--border-default);
+  padding-top: 1rem;
+}
+.clip-source small,
+.clip-source code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.clip-source code {
+  margin: 0.2rem 0 0.5rem;
+}
+.clip-link,
+.clip-file {
+  color: var(--accent-primary, #10b981);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.clip-file input {
+  display: block;
+  max-width: 15rem;
+  font-size: 0.75rem;
+}
+.clip-picker {
+  justify-content: space-between;
+  margin: 1.5rem 0 1rem;
+}
+.clip-workspace {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  align-items: start;
+}
+.clip-preview canvas {
+  display: block;
+  width: 100%;
+  max-width: min(100%, 38vh);
+  height: auto;
+  margin: auto;
+  background: black;
+  touch-action: none;
+  cursor: grab;
+}
+.clip-left {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  min-width: 0;
+}
+.clip-monitor {
+  position: relative;
+  width: min(100%, 38vh);
+  margin: auto;
+}
+.clip-monitor canvas {
+  max-width: 100%;
+}
+.clip-guide {
+  position: absolute;
+  pointer-events: none;
+  border: 2px dashed #ffdf60;
+  color: #ffdf60;
+  font: 600 0.7rem monospace;
+  padding: 0.2rem;
+  text-shadow: 0 1px 2px black;
+}
+.clip-guide-control {
+  padding: 1rem;
+}
+.clip-segments {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 0.7rem;
+  flex-wrap: wrap;
+}
+.clip-segments button {
+  flex: 1;
+  min-width: 6rem;
+  border: 1px solid var(--border-default);
+  padding: 0.45rem;
+  border-radius: 0.4rem;
+  text-align: left;
+}
+.clip-segments time {
+  display: block;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.clip-segments button[aria-pressed='true'],
+.clip-cue.active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+.clip-cue {
+  padding: 0.45rem;
+  border-left: 3px solid transparent;
+}
+.clip-cue textarea {
+  width: 100%;
+  padding: 0.25rem;
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 0.3rem;
+}
+.clips .clip-warning {
+  color: var(--text-primary);
+  border-left: 3px solid #dc9408;
+  padding-left: 0.5rem;
+}
+.clip-save-state {
+  font-size: 0.8rem;
+  margin-right: auto;
+}
+.clip-transport {
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+.clip-controls fieldset {
+  border-top: 1px solid var(--border-default);
+  padding: 0.75rem 0;
+  min-width: 0;
+}
+.clip-controls legend {
+  font-weight: 650;
+  padding-right: 0.6rem;
+}
+.clip-controls .clip-row > label:not(.clip-toggle) {
+  flex: 1;
+  min-width: 6rem;
+}
+.clip-controls input[type='number'] {
+  width: 100%;
+}
+.clip-control-row {
+  margin-bottom: 0.75rem;
+}
+.clip-control-row > span {
+  min-width: 3rem;
+}
+.clip-control-row > label {
+  flex: 1;
+}
+.clips input[type='range'],
+.clips input[type='checkbox'] {
+  accent-color: #10b981;
+}
+.clip-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.clip-cues {
+  max-height: 12rem;
+  overflow: auto;
+}
+.clip-cues button {
+  display: block;
+  text-align: left;
+  padding: 0.4rem 0;
+}
+.clip-cues time {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+.clip-error {
+  margin: 1rem 0;
+}
+@media (max-width: 720px) {
+  .clip-workspace {
+    grid-template-columns: 1fr;
+  }
+  .clip-monitor {
+    width: min(100%, 32vh);
+  }
+}
+
+.clip-account {
+  display: grid;
+  gap: 1rem;
+}
+.clip-user {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem;
+}
+.clip-style-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.clip-active-section {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px #10b981;
+}
+.clip-divider {
+  position: absolute;
+  width: 100%;
+  left: 0;
+  height: 12px;
+  transform: translateY(-50%);
+  cursor: ns-resize;
+  touch-action: none;
+  background: linear-gradient(transparent 40%, #fff 45%, #10b981 55%, transparent 65%);
+}
+.clip-position-pad {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+.clip-source-frame {
+  position: relative;
+  overflow: hidden;
+  margin: 0.6rem 0;
+  background: #101010;
+}
+.clip-source-frame canvas {
+  width: 100%;
+  max-width: none;
+}
+.clip-crop-box {
+  position: absolute;
+  border: 2px solid #5cf3bb;
+  box-shadow: 0 0 0 100vmax #0018;
+  touch-action: none;
+  cursor: move;
+}
+.clip-resize {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 16px;
+  height: 16px;
+  background: #5cf3bb;
+  cursor: nwse-resize;
+}
+.clip-source-frame + small {
+  display: block;
+}
+.clip-link[aria-pressed='true'] {
+  font-weight: 750;
+  text-decoration-thickness: 3px;
+}

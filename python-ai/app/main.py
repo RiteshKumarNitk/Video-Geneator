@@ -1,16 +1,14 @@
 import os
-import shutil
 import logging
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel, HttpUrl
 import requests
 import json
-import re
-import subprocess
-import cv2
 from threading import Event, Lock
 
 from app.matting import process_video_matting
+from app.transcription import analyze_video
+from app.clips import router as clips_router
 from app.youtube_splitter import split_video_into_shorts, download_playlist_videos, JobCanceled
 from app.ffmpeg_utils import has_audio, extract_audio_high_quality as extract_audio, merge_audio_video
 from app.tts import text_to_speech, SUPPORTED_LANGUAGES
@@ -38,6 +36,7 @@ def _clear_youtube_cancel_event(job_id: str) -> None:
         _youtube_cancel_events.pop(job_id, None)
 
 app = FastAPI(title="AI Video Engine Service")
+app.include_router(clips_router)
 
 class ProcessVideoRequest(BaseModel):
     jobId: str
@@ -77,15 +76,6 @@ class TranscribeVideoRequest(BaseModel):
     videoPath: str
     outputDir: str
     progressCallbackUrl: str
-
-class RenderClipRequest(BaseModel):
-    jobId: str
-    videoPath: str
-    outputPath: str
-    start: float
-    end: float
-    words: list[dict] = []
-    captionStyle: str = "bold"
 
 def run_pipeline(request: ProcessVideoRequest):
     """Executes the full matting and audio composition pipeline in the background."""
@@ -292,36 +282,10 @@ def run_transcription_pipeline(request: TranscribeVideoRequest):
     try:
         os.makedirs(request.outputDir, exist_ok=True)
         requests.post(request.progressCallbackUrl, json={"jobId": request.jobId, "progress": 10, "status": "PROCESSING"}, timeout=3)
-        from faster_whisper import WhisperModel
-        model = WhisperModel(os.getenv("WHISPER_MODEL", "small"), device=os.getenv("WHISPER_DEVICE", "cpu"), compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8"))
-        segments, info = model.transcribe(request.videoPath, vad_filter=True, word_timestamps=True)
-        words = []
-        transcript = []
-        for s in segments:
-            if not s.text.strip():
-                continue
-            transcript.append({"start": round(float(s.start), 2), "end": round(float(s.end), 2), "text": s.text.strip()})
-            for w in (s.words or []):
-                words.append({"start": round(float(w.start), 2), "end": round(float(w.end), 2), "word": w.word.strip()})
-        if not transcript:
-            raise RuntimeError("No spoken words were detected in this video.")
-
-        # Rank 20–60 second windows using speech density and hook language. This is a transparent MVP heuristic.
-        hook_words = re.compile(r"\b(how|why|secret|mistake|truth|best|worst|learn|discover|never|always|because|first|finally)\b", re.I)
-        candidates = []
-        for i, item in enumerate(transcript):
-            end_index = i
-            while end_index + 1 < len(transcript) and transcript[end_index]["end"] - item["start"] < 45:
-                end_index += 1
-            end = min(transcript[end_index]["end"], item["start"] + 60)
-            text = " ".join(x["text"] for x in transcript[i:end_index + 1])
-            words = len(text.split())
-            score = min(99, round(35 + min(words, 100) * 0.35 + len(hook_words.findall(text)) * 7))
-            candidates.append({"id": f"suggestion-{len(candidates) + 1}", "start": round(item["start"], 2), "end": round(end, 2), "title": text[:72] + ("…" if len(text) > 72 else ""), "reason": "High speech density" + (" with a strong hook phrase" if hook_words.search(text) else ""), "score": score, "text": text})
-        suggestions = sorted(candidates, key=lambda x: x["score"], reverse=True)[:5]
+        result = analyze_video(request.videoPath)
         with open(os.path.join(request.outputDir, "transcript.json"), "w", encoding="utf-8") as f:
-            json.dump({"transcript": transcript, "words": words, "suggestions": suggestions, "language": getattr(info, "language", None)}, f, ensure_ascii=False)
-        requests.post(request.progressCallbackUrl, json={"jobId": request.jobId, "progress": 100, "status": "COMPLETED", "transcript": transcript, "words": words, "suggestions": suggestions}, timeout=5)
+            json.dump(result, f, ensure_ascii=False)
+        requests.post(request.progressCallbackUrl, json={"jobId": request.jobId, "progress": 100, "status": "COMPLETED", **result}, timeout=5)
     except Exception as e:
         logger.error(f"Job {request.jobId} transcription failed: {e}", exc_info=True)
         try:
@@ -379,71 +343,4 @@ def transcribe_video(request: TranscribeVideoRequest, background_tasks: Backgrou
         raise HTTPException(status_code=400, detail=f"Input video file not found at path: {request.videoPath}")
     background_tasks.add_task(run_transcription_pipeline, request)
     return {"status": "processing", "jobId": request.jobId}
-
-def ass_escape(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
-
-def write_ass_captions(path: str, words: list[dict], start: float, end: float, style: str):
-    selected = [w for w in words if float(w.get("end", 0)) > start and float(w.get("start", 0)) < end]
-    lines = ["[Script Info]", "ScriptType: v4.00+", "PlayResX: 1080", "PlayResY: 1920", "[V4+ Styles]", "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding", "Style: Default,Arial,64,&H00FFFFFF,&H00FFFFFF,&H00000000,&H99000000,1,0,1,4,1,2,60,60,180,1", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
-    for index in range(0, len(selected), 5):
-        group = selected[index:index + 5]
-        cue_start = max(start, float(group[0]["start"])) - start
-        cue_end = min(end, float(group[-1]["end"])) - start
-        def stamp(seconds):
-            minutes = int(seconds // 60)
-            return f"0:{minutes:02d}:{int((seconds % 60) * 100):04d}"
-        text = " ".join(ass_escape(str(w.get("word", ""))) for w in group)
-        lines.append(f"Dialogue: 0,{stamp(cue_start)},{stamp(cue_end)},Default,,0,0,0,,{text}")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-
-def render_vertical_clip(request: RenderClipRequest):
-    cap = cv2.VideoCapture(request.videoPath)
-    if not cap.isOpened():
-        raise RuntimeError("Could not open source video")
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    cap.set(cv2.CAP_PROP_POS_MSEC, request.start * 1000)
-    temp_video = request.outputPath + ".silent.mp4"
-    temp_ass = request.outputPath + ".ass"
-    writer = cv2.VideoWriter(temp_video, cv2.VideoWriter_fourcc(*"mp4v"), fps, (1080, 1920))
-    face_detector = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
-    last_center = width / 2
-    frame_count = max(1, int((request.end - request.start) * fps))
-    for _ in range(frame_count):
-        ok, frame = cap.read()
-        if not ok:
-            break
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_detector.detectMultiScale(gray, 1.1, 5, minSize=(max(40, width // 12), max(40, height // 12)))
-        if len(faces):
-            face = max(faces, key=lambda item: item[2] * item[3])
-            target = face[0] + face[2] / 2
-            last_center = last_center * 0.82 + target * 0.18
-        crop_width = min(width, int(height * 9 / 16))
-        x = max(0, min(width - crop_width, int(last_center - crop_width / 2)))
-        cropped = frame[:, x:x + crop_width]
-        writer.write(cv2.resize(cropped, (1080, 1920), interpolation=cv2.INTER_AREA))
-    cap.release()
-    writer.release()
-    write_ass_captions(temp_ass, request.words, request.start, request.end, request.captionStyle)
-    subprocess.run(["ffmpeg", "-y", "-i", temp_video, "-i", request.videoPath, "-ss", str(request.start), "-t", str(request.end - request.start), "-vf", f"subtitles={temp_ass}", "-map", "0:v:0", "-map", "1:a?", "-c:v", "libx264", "-c:a", "aac", "-shortest", request.outputPath], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    for path in (temp_video, temp_ass):
-        if os.path.exists(path):
-            os.remove(path)
-
-@app.post("/render-clip")
-def render_clip(request: RenderClipRequest):
-    if not os.path.exists(request.videoPath):
-        raise HTTPException(status_code=400, detail="Input video not found")
-    os.makedirs(os.path.dirname(request.outputPath), exist_ok=True)
-    try:
-        render_vertical_clip(request)
-        return {"status": "completed", "jobId": request.jobId, "outputPath": request.outputPath}
-    except Exception as error:
-        logger.error("Clip render failed", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(error))
-
 

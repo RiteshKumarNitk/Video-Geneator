@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 const features = [
   {
@@ -110,6 +111,8 @@ const faqs = [
 ];
 
 export default function LandingPage() {
+  redirect('/dashboard');
+
   return (
     <div className="flex-1 flex flex-col">
       {/* ─── HERO ─── */}

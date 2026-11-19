@@ -1,7 +1,8 @@
+import {visibleJob} from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { existsSync, statSync, createReadStream } from 'fs';
 import { Readable } from 'stream';
-import { getJob } from '@/lib/jobsStore';
+
 import { getStoragePath } from '@/lib/storage';
 
 export async function GET(
@@ -11,7 +12,8 @@ export async function GET(
   try {
     const { id, clipName } = await params;
     
-    const job = await getJob(id);
+    if (!/^[^/\\]+\.mp4$/i.test(clipName)) return new Response(null,{status:404});
+    const job = await visibleJob(id);
 
     if (!job || (job.type !== 'SHORTS_SPLIT' && job.type !== 'PLAYLIST_DOWNLOAD')) {
       return NextResponse.json({ error: 'Job not found or invalid type' }, { status: 404 });

@@ -3,9 +3,11 @@ import path from 'path';
 import { getStoragePath } from './storage';
 
 export interface Job {
+  owner?: string;
   id: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELED';
   originalVideo: string | null;
+  filename?: string;
   processedVideo: string | null;
   progress: number;
   duration: number | null;

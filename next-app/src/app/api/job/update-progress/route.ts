@@ -1,3 +1,4 @@
+import {callbackToken} from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { getJob, updateJob } from '@/lib/jobsStore';
 import { jobEvents } from '@/lib/queue';
@@ -11,6 +12,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
+    if (new URL(req.url).searchParams.get('token')!==await callbackToken(jobId)) return new Response(null,{status:403});
     console.log(`[Webhook] Job ${jobId}: status=${status}, progress=${progress}%`);
 
     let processedVideoPath: string | undefined;

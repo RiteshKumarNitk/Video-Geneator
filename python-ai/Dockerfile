@@ -7,6 +7,7 @@ ENV PYTHONUNBUFFERED=1
 # Install system dependencies (ffmpeg, opencv headless prerequisites)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    fonts-dejavu-core \
     libgl1 \
     libglib2.0-0 \
     libgomp1 \

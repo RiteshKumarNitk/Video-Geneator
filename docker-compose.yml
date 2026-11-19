@@ -1,4 +1,22 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: chroma
+      POSTGRES_USER: chroma
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chroma}
+    volumes:
+      - clips_database:/var/lib/postgresql/data
+      - ./next-app/prisma/migrations/202611190001_clips/migration.sql:/docker-entrypoint-initdb.d/001-clips.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chroma -d chroma"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - videobg_network
+
   redis:
     image: redis:7-alpine
     container_name: videobg_redis
@@ -19,8 +37,8 @@ services:
     volumes:
       - shared_storage:/app/shared-storage
       - ./python-ai/cookies:/app/cookies:ro
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     networks:
       - videobg_network
 
@@ -32,8 +50,11 @@ services:
     restart: always
     environment:
       - PYTHON_AI_URL=http://python-ai:8000
+      - DATABASE_URL=postgres://chroma:${POSTGRES_PASSWORD:-chroma}@postgres:5432/chroma
       - REDIS_URL=redis://redis:6379
       - NEXTJS_INTERNAL_URL=http://nextjs:3000
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
       - NODE_ENV=production
       - PORT=3000
       - SHARED_STORAGE_PATH=/app/shared-storage
@@ -42,8 +63,12 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - python-ai
-      - redis
+      python-ai:
+        condition: service_started
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     networks:
       - videobg_network
 
@@ -63,6 +88,7 @@ services:
       - videobg_network
 
 volumes:
+  clips_database:
   shared_storage:
 
 networks:

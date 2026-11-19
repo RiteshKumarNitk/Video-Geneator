@@ -5,8 +5,8 @@ import Header from '@/components/Header';
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ChromaAI | Self-Hosted Video Background Changer",
-  description: "Remove video backgrounds automatically and replace them with green screen or custom layouts using local, private AI models.",
+  title: "ChromaAI | Local AI Video Workspace",
+  description: "Create AI-selected clips, captions, vertical videos, and background-removed videos with a private self-hosted workspace.",
 };
 
 export default function RootLayout({

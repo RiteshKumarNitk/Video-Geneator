@@ -1,6 +1,7 @@
+import {visibleJob} from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
-import { getJob, deleteJobRecord } from '@/lib/jobsStore';
+import { deleteJobRecord } from '@/lib/jobsStore';
 import { cancelVideoJob } from '@/lib/queue';
 
 export async function GET(
@@ -9,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const job = await getJob(id);
+    const job = await visibleJob(id);
 
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
@@ -28,7 +29,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const job = await getJob(id);
+    const job = await visibleJob(id);
 
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });

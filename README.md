@@ -63,6 +63,17 @@ ChromaAI is a production-ready web application that automatically converts any u
 
 ---
 
+## Split-screen Clips
+
+Open `/clips` and sign in or create an account. Upload a video, choose one of your saved dashboard uploads, or import a YouTube video you have permission to download. **Copy Path** copies its shared-storage path. **Open Source** plays the original.
+
+1. Enter a clip name and choose **Create clip**. Use **Start** and **End** to set the trim. Clear **Preview selected range** to scrub the entire source.
+2. Choose a layout and select **Whole clip** or **Selected segment**. To switch layouts mid-clip, enter the cut time in seconds from the trim start, choose **Add cut**, then edit that segment. Select a section in the preview, drag or resize its box in **Source crop**, and adjust zoom. Top starts fitted and Bottom starts at 150%.
+3. Attach SRT or WebVTT, transcribe the original, or add timed cues. **Transcript** shows the cue editor. **Captions** burns the visible cues into the export. Both preview and export use bundled Noto fonts for English and Devanagari. Change typography and placement in **Caption Settings**. Save a named preset and use **Apply caption style** to reuse it across your clips. Shorts and Reels guides appear in the editor.
+4. Choose **Export MP4**. In **Exports**, use **Play export** or **Download MP4**. Reopen any saved clip to access its exports. The MP4 is 1080 × 1920 H.264 with AAC when the source contains audio.
+
+Better Auth stores accounts and sessions in the `clips_database` PostgreSQL volume. Compose initializes the Clips schema and the app applies private-workspace migrations on first use. Before serving a deployment on a public hostname, set `BETTER_AUTH_URL` to its public HTTPS origin. You can set `BETTER_AUTH_SECRET` to a persistent high-entropy secret or use the value generated and persisted by the app. Back up the database and `shared_storage` volumes together. Pre-account projects remain in storage without an assigned owner. Source playback requires a browser that supports the original codec. URL imports support downloadable HTTPS YouTube watch and share links.
+
 ## Quickstart Guide
 
 ### Prerequisites
@@ -92,7 +103,7 @@ This will automatically build and start the entire stack:
 *   **Next.js Web Interface** on `http://localhost` (proxied)
 *   **PostgreSQL** on port `5432`
 *   **Redis Cache** on port `6379`
-*   **FastAPI AI engine** on port `8000` (proxied to `/python-ai/`)
+*   **FastAPI AI engine** on port `8000` inside the Compose network
 
 During the build process, PyTorch will pre-cache the RVM model weights inside the Docker image cache, enabling 100% offline startup.
 

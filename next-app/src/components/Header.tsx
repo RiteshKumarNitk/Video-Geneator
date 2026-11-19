@@ -4,26 +4,26 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
-  Home,
   LayoutDashboard,
   Video,
-  Play,
-  Volume2,
-  Shield,
   Menu,
   X,
-  Bot,
+  MoreHorizontal,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
-const navItems = [
-  { href: '/', label: 'Home', icon: Home },
+const navItems: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/youtube', label: 'YouTube Shorts', icon: Video },
-  { href: '/playlist', label: 'Playlists', icon: Play },
-  { href: '/tts', label: 'Text to Speech', icon: Volume2 },
-  { href: '/chat', label: 'AI Chat', icon: Bot },
-  { href: '/admin', label: 'Admin', icon: Shield },
+  { href: '/clips', label: 'AI Clips', icon: Video },
+  { href: '/youtube', label: 'YouTube', icon: Video },
+];
+
+const toolItems = [
+  { href: '/playlist', label: 'Playlists' },
+  { href: '/tts', label: 'Text to Speech' },
+  { href: '/chat', label: 'AI Chat' },
+  { href: '/admin', label: 'Admin & Queue' },
 ];
 
 export default function Header() {
@@ -62,6 +62,13 @@ export default function Header() {
                 </Link>
               );
             })}
+            <Link
+              href="/dashboard#tools"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-white)] hover:bg-[var(--bg-hover)] transition-all"
+            >
+              <MoreHorizontal size={16} />
+              Tools
+            </Link>
           </nav>
         </div>
 
@@ -87,9 +94,8 @@ export default function Header() {
       {mobileOpen && (
         <div className="md:hidden border-t border-[var(--border-default)] bg-[var(--bg-header)] backdrop-blur-lg animate-fade-in">
           <nav className="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-1">
-            {navItems.map((item) => {
+            {[...navItems, ...toolItems].map((item) => {
               const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-              const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
@@ -101,7 +107,7 @@ export default function Header() {
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-white)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
-                  <Icon size={18} />
+                  <MoreHorizontal size={18} />
                   {item.label}
                 </Link>
               );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   Upload,
   RefreshCw,
@@ -10,6 +11,13 @@ import {
   ArrowLeft,
   Clock,
   Film,
+  Scissors,
+  Video,
+  Radio,
+  ListVideo,
+  AudioLines,
+  MessageSquare,
+  ArrowUpRight,
 } from 'lucide-react';
 
 interface Job {
@@ -208,6 +216,54 @@ export default function Dashboard() {
 
   return (
     <div className="page-container grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <section id="tools" className="lg:col-span-3 flex flex-col gap-5">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-400">Workspace</p>
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--text-white)] mt-2">
+              What are you creating today?
+            </h1>
+            <p className="text-sm text-[var(--text-secondary)] mt-2 max-w-2xl">
+              Start with AI clip creation, or open one of the supporting tools. Your heavy video processing continues inside Docker on this machine.
+            </p>
+          </div>
+          <span className="text-xs text-[var(--text-tertiary)] border border-[var(--border-default)] rounded-full px-3 py-1.5 w-fit">
+            Local & private
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
+          {[
+            { href: '/clips', title: 'AI Clip Studio', description: 'Find highlights and export vertical clips.', icon: Scissors, featured: true },
+            { href: '/youtube', title: 'YouTube video', description: 'Download, caption, and clip a video.', icon: Video },
+            { href: '/youtube?sourceType=livestream', title: 'Livestream', description: 'Process a live or recorded stream.', icon: Radio },
+            { href: '/playlist', title: 'Playlist', description: 'Queue multiple videos for processing.', icon: ListVideo },
+            { href: '/tts', title: 'Text to speech', description: 'Create narration from a script.', icon: AudioLines },
+            { href: '/chat', title: 'AI chat', description: 'Ask questions about your workflow.', icon: MessageSquare },
+          ].map((tool) => {
+            const Icon = tool.icon;
+            return (
+              <Link
+                key={tool.href}
+                href={tool.href}
+                className={`group glass-card p-4 flex flex-col gap-4 min-h-[145px] transition-all hover:-translate-y-0.5 hover:border-emerald-500/35 ${tool.featured ? 'border-emerald-500/25 bg-emerald-500/[0.04]' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${tool.featured ? 'bg-emerald-500 text-black' : 'bg-[var(--bg-hover)] text-emerald-400'}`}>
+                    <Icon size={18} />
+                  </div>
+                  <ArrowUpRight size={15} className="text-[var(--text-tertiary)] group-hover:text-emerald-400 transition-colors" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-[var(--text-white)]">{tool.title}</h2>
+                  <p className="text-[11px] text-[var(--text-secondary)] mt-1 leading-relaxed">{tool.description}</p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
       <div className="lg:col-span-2 flex flex-col gap-6">
 
         {!activeJob && (
