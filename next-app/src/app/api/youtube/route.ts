@@ -51,9 +51,6 @@ export async function POST(req: Request) {
       orientation,
       undefined,
       undefined,
-      undefined,
-      undefined,
-      undefined,
       sourceType
     );
 

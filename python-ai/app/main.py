@@ -11,7 +11,6 @@ from app.transcription import analyze_video
 from app.clips import router as clips_router
 from app.youtube_splitter import split_video_into_shorts, download_playlist_videos, JobCanceled
 from app.ffmpeg_utils import has_audio, extract_audio_high_quality as extract_audio, merge_audio_video
-from app.tts import text_to_speech, SUPPORTED_LANGUAGES
 
 
 # Setup logging
@@ -63,13 +62,6 @@ class YoutubePlaylistRequest(BaseModel):
     outputDir: str
     progressCallbackUrl: str
 
-class TextToSpeechRequest(BaseModel):
-    jobId: str
-    text: str
-    language: str = "hi"
-    slow: bool = False
-    outputPath: str
-    progressCallbackUrl: str
 
 class TranscribeVideoRequest(BaseModel):
     jobId: str
@@ -243,39 +235,6 @@ def run_playlist_pipeline(request: YoutubePlaylistRequest):
         except Exception as webhook_err:
             logger.error(f"Failed to send failure webhook for job {job_id}: {str(webhook_err)}")
 
-def run_tts_pipeline(request: TextToSpeechRequest):
-    job_id = request.jobId
-    text = request.text
-    language = request.language
-    slow = request.slow
-    output_path = request.outputPath
-    callback_url = request.progressCallbackUrl
-
-    try:
-        logger.info(f"Starting TTS pipeline for job: {job_id} (lang={language}, chars={len(text)})")
-        requests.post(callback_url, json={"jobId": job_id, "progress": 10, "status": "PROCESSING"}, timeout=2)
-
-        success = text_to_speech(text, output_path, language, slow)
-
-        if not success:
-            raise RuntimeError("TTS generation failed.")
-
-        logger.info(f"Job {job_id}: TTS complete. File saved to {output_path}")
-        requests.post(
-            callback_url,
-            json={"jobId": job_id, "progress": 100, "status": "COMPLETED", "processedVideo": output_path},
-            timeout=5
-        )
-    except Exception as e:
-        logger.error(f"Job {job_id} TTS failed: {str(e)}", exc_info=True)
-        try:
-            requests.post(
-                callback_url,
-                json={"jobId": job_id, "progress": 0, "status": "FAILED", "error": str(e)},
-                timeout=5
-            )
-        except Exception as webhook_err:
-            logger.error(f"Failed to send failure webhook for TTS job {job_id}: {str(webhook_err)}")
 
 def run_transcription_pipeline(request: TranscribeVideoRequest):
     """Transcribe speech locally and rank transcript windows as clip suggestions."""
@@ -300,12 +259,8 @@ def health_check():
         "status": "healthy",
         "cuda_available": torch.cuda.is_available(),
         "device": "cuda" if torch.cuda.is_available() else "cpu",
-        "tts_languages": {k: v for k, v in SUPPORTED_LANGUAGES.items()},
     }
 
-@app.get("/tts-languages")
-def tts_languages():
-    return SUPPORTED_LANGUAGES
 
 @app.post("/process-video")
 def process_video(request: ProcessVideoRequest, background_tasks: BackgroundTasks):
@@ -332,10 +287,6 @@ def youtube_playlist(request: YoutubePlaylistRequest, background_tasks: Backgrou
     background_tasks.add_task(run_playlist_pipeline, request)
     return {"status": "processing", "jobId": request.jobId}
 
-@app.post("/text-to-speech")
-def text_to_speech_endpoint(request: TextToSpeechRequest, background_tasks: BackgroundTasks):
-    background_tasks.add_task(run_tts_pipeline, request)
-    return {"status": "processing", "jobId": request.jobId}
 
 @app.post("/transcribe-video")
 def transcribe_video(request: TranscribeVideoRequest, background_tasks: BackgroundTasks):

@@ -54,11 +54,9 @@ export default function RootLayout({
               <div className="flex flex-col gap-3">
                 <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">Product</h4>
                 <div className="flex flex-col gap-2">
-                  <Link href="/dashboard" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Dashboard</Link>
+                  <Link href="/dashboard" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Background replacement</Link>
                   <Link href="/youtube" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">YouTube Shorts</Link>
                   <Link href="/playlist" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Playlists</Link>
-                  <Link href="/tts" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Text to Speech</Link>
-                  <Link href="/chat" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">AI Chat</Link>
                 </div>
               </div>
 

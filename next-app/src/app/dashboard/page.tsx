@@ -15,8 +15,6 @@ import {
   Video,
   Radio,
   ListVideo,
-  AudioLines,
-  MessageSquare,
   ArrowUpRight,
 } from 'lucide-react';
 
@@ -232,14 +230,12 @@ export default function Dashboard() {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {[
             { href: '/clips', title: 'AI Clip Studio', description: 'Find highlights and export vertical clips.', icon: Scissors, featured: true },
             { href: '/youtube', title: 'YouTube video', description: 'Download, caption, and clip a video.', icon: Video },
             { href: '/youtube?sourceType=livestream', title: 'Livestream', description: 'Process a live or recorded stream.', icon: Radio },
             { href: '/playlist', title: 'Playlist', description: 'Queue multiple videos for processing.', icon: ListVideo },
-            { href: '/tts', title: 'Text to speech', description: 'Create narration from a script.', icon: AudioLines },
-            { href: '/chat', title: 'AI chat', description: 'Ask questions about your workflow.', icon: MessageSquare },
           ].map((tool) => {
             const Icon = tool.icon;
             return (

@@ -25,6 +25,23 @@ EXTENSIONS = {".mp4", ".m4v", ".mov", ".webm", ".mkv"}
 LOCAL_INPUT = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "mov,matroska,webm"]
 
 
+@lru_cache(maxsize=128)
+def export_poster(export_id: UUID):
+    file = ROOT / "processed" / "clips" / f"{export_id}.mp4"
+    if not file.is_file():
+        raise HTTPException(404, "Export unavailable")
+    return subprocess.check_output([
+        get_tool_path("ffmpeg"), "-nostdin", "-v", "error", "-threads", "1", *LOCAL_INPUT,
+        "-i", str(file), "-frames:v", "1", "-vf", "scale=270:480", "-threads", "1",
+        "-c:v", "mjpeg", "-f", "image2pipe", "-"
+    ], timeout=15)
+
+
+@router.get("/poster/{export_id}")
+def poster(export_id: UUID):
+    return Response(export_poster(export_id), media_type="image/jpeg")
+
+
 def source_path(relative):
     path = (ROOT / relative).resolve()
     if path.parent != ROOT / "uploads" or path.suffix.lower() not in EXTENSIONS:

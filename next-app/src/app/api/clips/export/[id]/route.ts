@@ -9,6 +9,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const [row] =
       await sql`select e.id from clip_export e join clip c on c.id=e.clip join clip_source s on s.id=c.source where e.id=${id} and s.owner=${user} and e.status='completed'`;
     if (!row) throw new InputError('Export is unavailable.', 404);
+    if (new URL(req.url).searchParams.has('poster')) {
+      const image = await fetch(new URL('/clips/poster/' + id, process.env.PYTHON_AI_URL || 'http://localhost:8000'), {signal: AbortSignal.timeout(20000)});
+      if (!image.ok) throw new InputError('Preview unavailable.', 404);
+      return new Response(image.body, {headers: {'Content-Type':'image/jpeg','Cache-Control':'private, max-age=3600','Vary':'Cookie'}});
+    }
     return await serveVideo(
       req,
       'processed/clips/' + id + '.mp4',

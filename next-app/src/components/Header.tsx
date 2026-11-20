@@ -14,15 +14,13 @@ import type { LucideIcon } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
 const navItems: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Background replacement', icon: LayoutDashboard },
   { href: '/clips', label: 'AI Clips', icon: Video },
   { href: '/youtube', label: 'YouTube', icon: Video },
 ];
 
 const toolItems = [
   { href: '/playlist', label: 'Playlists' },
-  { href: '/tts', label: 'Text to Speech' },
-  { href: '/chat', label: 'AI Chat' },
   { href: '/admin', label: 'Admin & Queue' },
 ];
 
@@ -75,10 +73,10 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <Link
-            href="/dashboard"
+            href="/clips"
             className="relative group overflow-hidden px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 active:scale-95 bg-white text-black hover:bg-zinc-200 shadow-md hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] hidden sm:inline-flex"
           >
-            Launch App
+            Open Studio
           </Link>
 
           <button

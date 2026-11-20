@@ -5,12 +5,12 @@ import { getJob, updateJob } from './jobsStore';
 import { getStoragePath } from './storage';
 
 export const jobEvents = new EventEmitter();
-export type VideoJobType = 'MATTING' | 'SHORTS_SPLIT' | 'PLAYLIST_DOWNLOAD' | 'TEXT_TO_SPEECH' | 'GENERATION' | 'CLIP_ANALYSIS';
+export type VideoJobType = 'MATTING' | 'SHORTS_SPLIT' | 'PLAYLIST_DOWNLOAD' | 'CLIP_ANALYSIS';
 
 interface QueueItem {
   jobId: string; videoPath: string | null; backgroundType: string; callbackBase: string; type: VideoJobType;
   youtubeUrl: string | null; sourceType: string; clipDuration: number; videoQuality: string; orientation: string;
-  playlistUrl?: string; maxVideos?: number; ttsText?: string; ttsLanguage?: string; ttsSlow?: boolean;
+  playlistUrl?: string; maxVideos?: number;
 }
 
 const queueName = 'video-processing';
@@ -40,15 +40,15 @@ async function waitForCallback(jobId: string): Promise<void> {
 }
 
 async function callPython(item: QueueItem): Promise<Response> {
-  const { jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, sourceType, clipDuration, videoQuality, orientation, playlistUrl, maxVideos, ttsText, ttsLanguage, ttsSlow } = item;
+  const { jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, sourceType, clipDuration, videoQuality, orientation, playlistUrl, maxVideos } = item;
   const common = { jobId, progressCallbackUrl: `${process.env.NEXTJS_INTERNAL_URL || 'http://localhost:3000'}/api/job/update-progress?token=${await callbackToken(jobId)}` };
   let endpoint: string;
   let body: Record<string, unknown>;
   if (type === 'SHORTS_SPLIT') { endpoint = '/youtube-split'; body = { ...common, youtubeUrl, sourceType, clipDuration, videoQuality, orientation, outputDir: getStoragePath(`processed/${jobId}`) }; }
   else if (type === 'PLAYLIST_DOWNLOAD') { endpoint = '/youtube-playlist'; body = { ...common, playlistUrl, videoQuality, maxVideos, outputDir: getStoragePath(`processed/${jobId}`) }; }
-  else if (type === 'TEXT_TO_SPEECH') { endpoint = '/text-to-speech'; body = { ...common, text: ttsText, language: ttsLanguage || 'hi', slow: ttsSlow || false, outputPath: getStoragePath(`processed/${jobId}.mp3`) }; }
   else if (type === 'CLIP_ANALYSIS') { endpoint = '/transcribe-video'; body = { ...common, videoPath, outputDir: getStoragePath(`processed/${jobId}`) }; }
-  else { endpoint = '/process-video'; body = { ...common, videoPath, outputPath: getStoragePath(`processed/${jobId}.mp4`), backgroundType }; }
+  else if (type === 'MATTING') { endpoint = '/process-video'; body = { ...common, videoPath, outputPath: getStoragePath(`processed/${jobId}.mp4`), backgroundType }; }
+  else throw new Error('Unsupported video job type');
   return fetch(`${process.env.PYTHON_AI_URL || 'http://localhost:8000'}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
@@ -74,9 +74,9 @@ worker.on('failed', async (bullJob, error) => {
 });
 worker.on('error', error => console.error('[Queue] Worker error:', error));
 
-export async function addVideoJob(jobId: string, videoPath: string | null, backgroundType = 'green', nextjsInternalUrl?: string, type: VideoJobType = 'MATTING', youtubeUrl: string | null = null, clipDuration = 30, videoQuality = '1080p', orientation = 'horizontal', playlistUrl?: string, maxVideos?: number, ttsText?: string, ttsLanguage?: string, ttsSlow?: boolean, sourceType = 'video') {
+export async function addVideoJob(jobId: string, videoPath: string | null, backgroundType = 'green', nextjsInternalUrl?: string, type: VideoJobType = 'MATTING', youtubeUrl: string | null = null, clipDuration = 30, videoQuality = '1080p', orientation = 'horizontal', playlistUrl?: string, maxVideos?: number, sourceType = 'video') {
   const callbackBase = process.env.NEXTJS_INTERNAL_URL || nextjsInternalUrl || 'http://localhost:3000';
-  const data: QueueItem = { jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, sourceType, clipDuration, videoQuality, orientation, playlistUrl, maxVideos, ttsText, ttsLanguage, ttsSlow };
+  const data: QueueItem = { jobId, videoPath, backgroundType, callbackBase, type, youtubeUrl, sourceType, clipDuration, videoQuality, orientation, playlistUrl, maxVideos };
   const queueOptions = type === 'SHORTS_SPLIT' ? { jobId, attempts: 1 } : { jobId };
   const queued = await videoQueue.add(jobId, data, queueOptions);
   return { jobId, queueId: queued.id };
