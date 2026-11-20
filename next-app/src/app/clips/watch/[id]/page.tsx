@@ -24,6 +24,7 @@ export default async function Watch({ params }: { params: Promise<{ id: string }
         <a className="btn btn-primary" download href={'/api/clips/export/' + id}>
           Download MP4
         </a>
+        <a download href={'/api/clips/pack/' + id + '?platform=facebook&scope=export'}>Download Facebook Reel pack</a>
         <Link href={'/clips/' + row.id}>Open draft</Link>
       </div>
     </div>

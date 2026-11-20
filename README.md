@@ -136,6 +136,23 @@ During the build process, PyTorch will pre-cache the RVM model weights inside th
 
 ---
 
+## Shorts studio and YouTube posting
+
+In Clips, select a ready source and use **Find next 5 moments**. Shorts studio reuses timed captions or starts transcription, samples gameplay movement, and excludes previously used trims. In **Channel and batch settings**, choose a 30–55 second duration, title style, source credit, and a saved framing/caption preset. Review, replace or skip individual picks. **Export batch** renders the included drafts. The ZIP contains each MP4, SRT and upload copy. New batch exports also include a quality report with sampled framing, audio and caption checks.
+
+Enable **Automatically export new batches** to send new selections directly to the render queue. With automatic YouTube uploads enabled too, **Find next 5 moments** takes the batch through export, quality checks and posting without another click.
+
+For manual Facebook posting, choose **Download Facebook Reel pack** on an export’s playback page, or **Download Facebook Reels pack** on a completed batch. Each folder contains the rendered MP4, timed SRT and a Facebook caption. Upload the MP4 and paste the caption when creating the Reel.
+
+### Connect a channel
+
+1. Enable YouTube Data API v3 in the Google Cloud project and create a Web application OAuth client. Configure the consent screen for the channel owner. Register the exact callback URL, for example `http://127.0.0.1:3187/api/clips/youtube/callback` for the local acceptance server. Use HTTPS for a hosted installation.
+2. Set `BETTER_AUTH_URL` to the external application origin. Set `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_TOKEN_KEY` in the Next.js service environment. Generate the token key once with `openssl rand -base64 32`; keep it in the server secret store across restarts. Recreate the Next.js container after changing its environment.
+3. In **Clips → Shorts studio → Channel and batch settings**, choose **Connect YouTube**, authorize the intended channel, and check the displayed channel name. Choose visibility and minutes between uploads, enable **Automatically upload new exports**, and save. Private is the initial visibility. A zero interval queues uploads immediately. The worker must be running when a slot is due.
+4. Export a clip or batch. Each clip gets one posting record when exported with automatic posting enabled. A completed render with a quality warning waits for review. Edit and re-export it to run the checks again. The YouTube queue shows the returned video link after upload. Resuming an interrupted upload uses its existing session. An expired session requires checking YouTube Studio before starting a separate publication. Turning automatic uploads off pauses pending jobs. The account owner can revoke app access in Google Account permissions.
+
+Google can restrict visibility for uploads from unaudited API projects. See [videos.insert](https://developers.google.com/youtube/v3/docs/videos/insert) and [Google OAuth web server setup](https://developers.google.com/identity/protocols/oauth2/web-server).
+
 ## Swapping AI Models
 If you wish to upgrade from Robust Video Matting to a newer model (e.g., BiRefNet or MODNet):
 1.  Add new model code or libraries in `python-ai/app/matting.py`.

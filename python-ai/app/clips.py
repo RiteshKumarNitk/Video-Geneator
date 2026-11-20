@@ -48,12 +48,36 @@ def probe(path):
     duration = float(video.get("duration") or data["format"]["duration"])
     if not math.isfinite(duration) or duration <= 0 or min(width, height) < 2:
         raise ValueError("Invalid video dimensions or duration")
-    return {"width": width, "height": height, "duration": duration, "stream": video["index"], "rate": video.get("avg_frame_rate", "30/1")}
+    return {"width": width, "height": height, "duration": duration, "stream": video["index"], "audio": any(s["codec_type"] == "audio" for s in data["streams"]), "rate": video.get("avg_frame_rate", "30/1")}
 
 
 class SourceRequest(BaseModel):
     path: str
     youtubeId: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{11}$")
+
+
+@router.post("/motion")
+def sample_motion(request: SourceRequest):
+    """Estimate action from nearby luma frames in a bounded sample of the source."""
+    import cv2
+    path = source_path(request.path)
+    duration = probe(path)["duration"]
+    cap = cv2.VideoCapture(str(path))
+    samples = []
+    try:
+        for i in range(min(64, max(1, int(duration // 5)))):
+            at = i * max(5, duration / 64)
+            frames = []
+            for timestamp in (at, at + .5):
+                cap.set(cv2.CAP_PROP_POS_MSEC, 1000 * timestamp)
+                ok, frame = cap.read()
+                if ok:
+                    frames.append(cv2.cvtColor(cv2.resize(frame, (96,54)), cv2.COLOR_BGR2GRAY))
+            if len(frames) == 2:
+                samples.append({"at": at, "score": float(cv2.absdiff(*frames).mean())})
+    finally:
+        cap.release()
+    return samples
 
 
 @router.post("/source")
@@ -80,7 +104,10 @@ def prepare_source(request: SourceRequest):
 
 @router.post("/transcribe")
 def transcribe(request: SourceRequest):
-    return analyze_video(str(source_path(request.path)))
+    path = source_path(request.path)
+    if not probe(path)['audio']:
+        return {'transcript': [], 'suggestions': [], 'words': [], 'language': None}
+    return analyze_video(str(path), allow_silent=True)
 
 
 class Caption(BaseModel):
@@ -227,6 +254,8 @@ class Export(BaseModel):
     segments: list[Segment] = Field(default_factory=list, max_length=129)
     style: CaptionStyle = Field(default_factory=CaptionStyle)
     cues: list[Cue]
+    qualityCheck: bool = False
+    guide: Literal['Off','Shorts','Reels'] = 'Off'
 
 
 def caption_track(folder, cues, duration, style):
@@ -355,13 +384,23 @@ def render(request):
                     raise ValueError("FFmpeg export failed")
         finally:
             progress.unlink(missing_ok=True)
+        check = probe(temp / "result.mp4")
+        if ((check["width"], check["height"]) != (1080, 1920)
+                or check["audio"] != meta["audio"]
+                or abs(check["duration"] - duration) > max(.15, 2 / float(output_rate(meta)))):
+            raise ValueError("Export failed dimension, duration or audio validation")
+        report = {"width": check["width"], "height": check["height"], "duration": check["duration"], "audio": check["audio"]}
+        if request.qualityCheck:
+            from app.clip_quality import audit
+            report.update(audit(source, temp / "result.mp4", request, segments, meta,
+                                get_tool_path("ffmpeg"), caption_bounds))
         os.replace(temp / "result.mp4", output)
+        return report
 
 
 @router.post("/export")
 def export_clip(request: Export):
     try:
-        render(request)
-        return {"status": "completed"}
+        return {"status": "completed", "quality": render(request)}
     except Exception as exc:
         raise HTTPException(422, "Could not encode the saved source and trim.") from exc

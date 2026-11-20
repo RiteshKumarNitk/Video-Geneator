@@ -2,7 +2,7 @@ import os
 import re
 
 
-def analyze_video(video_path):
+def analyze_video(video_path, allow_silent=False):
     from faster_whisper import WhisperModel
     model = WhisperModel(os.getenv("WHISPER_MODEL", "small"), device=os.getenv("WHISPER_DEVICE", "cpu"), compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8"))
     segments, info = model.transcribe(video_path, vad_filter=True, word_timestamps=True)
@@ -15,7 +15,9 @@ def analyze_video(video_path):
         for w in (s.words or []):
             words.append({"start": round(float(w.start), 2), "end": round(float(w.end), 2), "word": w.word.strip()})
     if not transcript:
-        raise RuntimeError("No spoken words were detected in this video.")
+        if not allow_silent:
+            raise RuntimeError('No spoken words were detected in this video.')
+        return {"transcript": [], "words": [], "suggestions": [], "language": getattr(info, "language", None)}
 
     # Rank 20–60 second windows using speech density and hook language. This is a transparent MVP heuristic.
     hook_words = re.compile(r"\b(how|why|secret|mistake|truth|best|worst|learn|discover|never|always|because|first|finally)\b", re.I)

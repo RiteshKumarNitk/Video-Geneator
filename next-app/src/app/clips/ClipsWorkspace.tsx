@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Library } from '@/lib/clips/model';
 import Editor from './Editor';
+import Studio from './Studio';
 
 async function copyPath(value: string) {
   if (navigator.clipboard) return navigator.clipboard.writeText(value);
@@ -289,6 +290,7 @@ export default function ClipsPage() {
           </div>
         )}
       </section>
+      <Studio lib={lib} source={source} refresh={refresh} open={open} />
       {error && (
         <p role="alert" className="clip-error">
           {error}

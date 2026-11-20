@@ -26,7 +26,9 @@
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
-    "uuid": "^14.0.1"
+    "transliteration": "^2.7.0",
+    "uuid": "^14.0.1",
+    "yazl": "^3.3.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -36,6 +38,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+    "@types/yazl": "^3.3.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "prisma": "^7.8.0",

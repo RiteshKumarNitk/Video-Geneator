@@ -1,4 +1,5 @@
 'use client';
+import { captionCues } from '@/lib/clips/hinglish';
 import { useState, useEffect, useMemo } from 'react';
 import {
   defaultStyle,
@@ -36,7 +37,7 @@ export default function CaptionPanel({
   busy,
   report,
 }: Props) {
-  const cues = s.cues ?? source.cues,
+  const cues = captionCues(s, source.cues),
     style = s.style ?? defaultStyle;
   const rows = useMemo(() => {
     const selected = cues

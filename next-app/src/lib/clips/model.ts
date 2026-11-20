@@ -44,6 +44,7 @@ export type Settings = {
   end: number;
   top: Crop | null;
   bottom: Crop;
+  romanCaptions?: boolean;
   transcript: boolean;
   captions: boolean;
 };
@@ -61,8 +62,8 @@ export type Source = {
   analysis: string | null;
   suggestions: { start: number; end: number; title: string }[];
 };
-export type Clip = { id: string; source: string; title: string; settings: Settings };
-export type Output = { progress?: number; id: string; clip: string; status: string; error: string | null };
+export type Clip = { id: string; source: string; title: string; settings: Settings; batch?:string; skipped?:boolean; reason?:string; description?:string };
+export type Output = { progress?: number; id: string; clip: string; status: string; error: string | null; warnings?:string[] };
 export type Library = {
   presets?: Preset[];
   sources: Source[];
@@ -72,13 +73,29 @@ export type Library = {
 };
 export const centered = (zoom: number): Crop => ({ x: 0.5, y: 0.5, zoom });
 export const defaults = (duration: number): Settings => ({
-  topHeight: 960,
+  mode: 'split',
+  topHeight: 720,
   start: 0,
   end: duration,
-  top: null,
-  bottom: centered(1.5),
+  // The Next Five reference stream has its facecam on the left at mid-height.
+  top: { x: 0.10598958333333333, y: 0.5027777777777778, zoom: 1, basis: 3.998816335894614 },
+  bottom: centered(1),
+  style: {
+    size: 54,
+    y: 1460,
+    positionY: 0.416,
+    color: '#fff8e6',
+    weight: 700,
+    background: true,
+    bgColor: '#161923',
+    opacity: 0.88,
+    outline: 2,
+    outlineColor: '#101218',
+    maxWidth: 880,
+  },
+  romanCaptions: true,
   transcript: true,
-  captions: false,
+  captions: true,
 });
 const between = (v: unknown, low: number, high: number) =>
   typeof v === 'number' && Number.isFinite(v) && v >= low && v <= high;
@@ -166,6 +183,7 @@ export function sections(meta: Metadata, layout: Layout) {
 export function validSettings(s: Settings, duration: number) {
   return (
     s &&
+    (s.romanCaptions === undefined || typeof s.romanCaptions === 'boolean') &&
     validLayout(baseLayout(s)) &&
     (s.cuts === undefined ||
       (Array.isArray(s.cuts) &&

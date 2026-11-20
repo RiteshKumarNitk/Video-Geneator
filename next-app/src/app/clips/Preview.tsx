@@ -1,4 +1,5 @@
 'use client';
+import { captionCues } from '@/lib/clips/hinglish';
 import { useEffect, useRef, useState } from 'react';
 import {
   sections,
@@ -83,7 +84,7 @@ export default function Preview({
     height: number;
   } | null>(null);
   const sourceUrl = '/api/clips/source/' + source.id;
-  const cues = settings.cues ?? source.cues;
+  const cues = captionCues(settings, source.cues);
   const style = settings.style ?? defaultStyle;
   const guide = settings.guide && settings.guide !== 'Off' ? guides[settings.guide] : null;
   const redrawRef = useRef<() => void>(() => {});

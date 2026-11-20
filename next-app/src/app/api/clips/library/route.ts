@@ -40,7 +40,7 @@ export async function GET() {
     const [sources, clips, exports, jobs, savedPresets] = await Promise.all([
       sql`select id,path,filename,url,status,error,metadata,cues,analysis,suggestions from clip_source where owner=${user} order by created desc`,
       sql`select c.* from clip c join clip_source s on c.source=s.id where s.owner=${user} order by c.created desc`,
-      sql`select e.id,e.clip,e.status,e.error from clip_export e join clip c on c.id=e.clip join clip_source s on s.id=c.source where s.owner=${user} order by e.created desc`,
+      sql`select e.id,e.clip,e.status,e.error,e.quality->'warnings' as warnings from clip_export e join clip c on c.id=e.clip join clip_source s on s.id=c.source where s.owner=${user} order by e.created desc`,
       readJobs(),
       presets(user),
     ]);
@@ -78,6 +78,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await owner();
+    if (!req.headers.get('content-type')?.startsWith('application/json') || req.headers.get('sec-fetch-site')==='cross-site') throw new InputError('Use the Clips editor.',403);
     const data = await req.json();
     const { action } = data;
     const attempt = randomUUID();
@@ -113,8 +114,8 @@ export async function POST(req: Request) {
       await enqueue({ kind: 'export', id, attempt });
       return Response.json(row);
     }
-    if (action === 'save' || action === 'export') {
-      const result = await saveClip(id, user, data.settings, action === 'export', data.expected);
+    if (['save','export','batchExport'].includes(action)) {
+      const result = await saveClip(id, user, data.settings, action !== 'save', data.expected, action === 'batchExport');
       return Response.json({ id: result });
     }
     const [source] = await sql`select * from clip_source where id=${id} and owner=${user}`;

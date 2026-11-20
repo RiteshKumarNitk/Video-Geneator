@@ -15,6 +15,7 @@ async function initialize() {
     const secret = await sql.begin(async (tx) => {
       await tx`select pg_advisory_xact_lock(56310272)`;
       await tx.file(path.join(process.cwd(), 'prisma/migrations/202611190003_private_clips/migration.sql'));
+      await tx.file(path.join(process.cwd(), 'prisma/migrations/202611200001_studio/migration.sql'));
       await tx`insert into workspace_secret values ('sessions',${randomBytes(48).toString('hex')}) on conflict do nothing`;
       const [row] = await tx`select value from workspace_secret where purpose='sessions'`;
       return row.value as string;
